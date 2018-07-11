@@ -4,6 +4,30 @@ import os
 import warnings
 
 
+def dipfield(calc, val):
+    """"""
+    assert isinstance(val, bool)
+    if not calc.get_param('tefield'):
+        calc.params['tefield'] = True
+
+
+def tefield(calc, val):
+    """"""
+    assert isinstance(val, bool)
+
+
+def tstress(calc, val):
+    """"""
+    assert isinstance(val, bool)
+    if not calc.get_param('tprnfor'):
+        calc.params['tprnfor'] = True
+
+
+def tprnfor(calc, val):
+    """"""
+    assert isinstance(val, bool)
+
+
 def occupations(calc, val):
     """"""
     assert isinstance(val, str)

@@ -23,12 +23,15 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
     def __init__(
             self,
             atoms,
+            site=None,
             **kwargs):
         atoms.set_calculator(self)
         self.params = kwargs.copy()
         self.results = {}
 
-        self.site = siteconfig.SiteConfig.check_scheduler()
+        self.site = site
+        if site is None:
+            self.site = siteconfig.SiteConfig.check_scheduler()
         self.natoms = len(self.atoms)
         self.symbols = self.atoms.get_chemical_symbols()
         self.species = np.unique(self.symbols)
@@ -61,16 +64,6 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
 
     def initialize(self):
         """Create the input file to start the calculation."""
-        if self.get_param('dipfield') is not None:
-            self.params['tefield'] = True
-
-        if self.get_param('tstress') is not None:
-            self.params['tprnfor'] = True
-
-        self.params['nat'] = len(self.symbols)
-        self.params['ntyp'] = len(self.species)
-
-        # Apply any remaining default settings
         for key, value in defaults.items():
             setting = self.get_param(key)
             if setting is not None:
