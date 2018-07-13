@@ -234,6 +234,35 @@ def nosym(calc, val):
     assert isinstance(val, bool)
 
 
+# PROJWFC variables
+def Emin(calc, val):
+    """"""
+    assert isinstance(val, (float, int))
+
+    efermi = calc.get_fermi_level()
+    if efermi is not None:
+        return val + efermi
+
+
+def Emax(calc, val):
+    """"""
+    assert isinstance(val, (float, int))
+
+    efermi = calc.get_fermi_level()
+    if efermi is not None:
+        return val + efermi
+
+
+def DeltaE(calc, val):
+    """"""
+    assert isinstance(val, (float, int))
+
+
+def nguass(calc, val):
+    """"""
+    assert isinstance(val, int)
+
+
 variables = {
     # CONTROL
     'calculation': 'scf',
@@ -412,3 +441,23 @@ variables = {
     'press_conv_thr': None,
     'cell_dofree': None,
 }
+
+
+projwfc_vars = {
+    # PROJWFC
+    'ngauss': None,
+    'Emin': None,
+    'Emax': None,
+    'DeltaE': None,
+    'lsym': None,
+    'pawpraj': None,
+    'filpdos': None,
+    'filproj': None,
+    'lwrite_overlaps': None,
+    'lbinary_data': None,
+    'kresolveddos': None,
+    'tdosinboxes': None,
+    'n_proj_boxes': None,
+    'irmin': None,
+    'irmax': None,
+    'plotboxes': None}

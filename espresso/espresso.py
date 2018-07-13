@@ -1,14 +1,10 @@
 from . import siteconfig
 from . import validate
-import ase
-import atexit
-import subprocess
 import numpy as np
-import tarfile
+import ase
 import warnings
-import shutil
 import os
-defaults = validate.variables
+import glob
 
 
 class Espresso(ase.calculators.calculator.FileIOCalculator):
@@ -22,19 +18,23 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
 
     def __init__(
             self,
-            atoms,
+            atoms=None,
             site=None,
             **kwargs):
-        atoms.set_calculator(self)
         self.params = kwargs.copy()
+        self.defaults = validate.variables
         self.results = {}
+        self.infile = 'pw.pwi'
+        self.outfile = 'pw.pwo'
 
         self.site = site
         if site is None:
             self.site = siteconfig.SiteConfig.check_scheduler()
-        self.natoms = len(self.atoms)
-        self.symbols = self.atoms.get_chemical_symbols()
-        self.species = np.unique(self.symbols)
+
+        if atoms:
+            atoms.set_calculator(self)
+            self.symbols = self.atoms.get_chemical_symbols()
+            self.species = np.unique(self.symbols)
 
         # Certain keys are used for fixed IO features or atoms object
         # information. For calculation consistency, user input is ignored.
@@ -56,15 +56,11 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
                 if new_val is not None:
                     self.params[key] = new_val
             else:
-                if key not in defaults:
-                    warnings.warn('Not a valid key {}'.format(key))
-                    del self.params[key]
-                else:
-                    warnings.warn('No validation for {}'.format(key))
+                warnings.warn('No validation for {}'.format(key))
 
     def initialize(self):
         """Create the input file to start the calculation."""
-        for key, value in defaults.items():
+        for key, value in self.defaults.items():
             setting = self.get_param(key)
             if setting is not None:
                 self.params[key] = setting
@@ -74,28 +70,30 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
         for species in self.species:
             self.params['pseudopotentials'][species] = '{}.UPF'.format(species)
 
-        ase.io.write('pwcsf.pwi', self.atoms, **self.params)
+        ase.io.write(self.infile, self.atoms, **self.params)
 
     def calculate(self, atoms, properties=['energy'], changes=None):
         """Perform a calculation."""
         self.initialize()
-        self.create_outdir()
-        self.run()
 
-        atoms = ase.io.read('pwcsf.pwo')
+        self.site.make_scratch()
+        self.site.run(infile=self.infile, outfile=self.outfile)
+
+        atoms = ase.io.read(self.outfile)
+        self.set_atoms(atoms)
         self.set_results(atoms)
-
-    def set_atoms(self, atoms):
-        self.atoms = atoms.copy()
 
     def set_results(self, atoms):
         self.results = atoms._calc.results
+
+    def set_atoms(self, atoms):
+        self.atoms = atoms.copy()
 
     def get_param(self, parameter):
         """Return the parameter associated with a calculator,
         otherwise, return the default value.
         """
-        value = self.params.get(parameter, defaults[parameter])
+        value = self.params.get(parameter, self.defaults[parameter])
 
         return value
 
@@ -115,90 +113,116 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
         for i, symbol in enumerate(self.symbols):
             nvalence[i] = nel[symbol]
 
-        # Store the results for later.
+        # Store the results for nbnd validation.
         self.nvalence, self.nel = nvalence, nel
 
         return nvalence, nel
 
     def get_fermi_level(self):
-        efermi = siteconfig.grepy('pwcsf.pwo', 'Fermi energy')
+        efermi = siteconfig.grepy(self.outfile, 'Fermi energy')
         if efermi is not None:
             efermi = float(efermi.split()[-2])
 
         return efermi
 
-    def load_calculator(self, filename='calc.tar.gz'):
-        """Unpack the contents of calc.save directory."""
-        with tarfile.open(filename, 'r:gz') as f:
-            f.extractall()
 
-    def create_outdir(self):
-        """Create the necessary directory structure to run the calculation and
-        assign file names
-        """
-        self.localtmp = self.site.make_localtmp('')
-        self.scratch = self.site.make_scratch()
-        self.log = self.localtmp.joinpath('pwcsf.pwo')
+class QEProjection(Espresso):
+    """Calculate a projection of wavefunctions for a finished Quantum
+    Espresso calculation.
 
-        atexit.register(self.clean)
+    THIS IS STILL A WORK IN PROGRESS
+    """
 
-    @siteconfig.preserve_cwd
+    def __init__(self, **kwargs):
+        super().__init__(None, None, **kwargs)
+        self.dos_energies = None
+        self.dos_total = None
+        self.pdos = None
+
+        if self.get_param('calculation') in ['ncsf', 'bands']:
+            self.infile = 'ncsf.in'
+            self.initialize()
+
+            self.site.make_scratch()
+            self.site.run(infile=self.infile, outfile=self.outfile)
+
+            atoms = ase.io.read(self.outfile)
+            self.set_atoms(atoms)
+            self.set_results(atoms)
+
+    def write_input(self):
+        with open(self.infile, 'w') as f:
+            f.write("&PROJWFC\n   {:16} = 'calc'\n   {:16} = '.'\n".format(
+                'prefix', 'outdir'))
+
+            for key, value in self.params.items():
+                value = siteconfig.fortran_conversion(value)
+                f.write('   {:16} = {}\n'.format(key, value))
+            f.write('/\n')
+
     def run(self):
-        """Execute the expresso program `pw.x`"""
-        mypath = os.path.abspath(os.path.dirname(__file__))
-        exedir = subprocess.check_output(['which', 'pw.x']).decode()
-        psppath = self.get_param('pseudo_dir')
+        """Check if this is a refinement calculation
+        If so, we need the calculation file
+        """
 
-        title = '{:<14}: {}\n{:<14}: {}{:<14}: {}\n'.format(
-            'python dir', mypath, 'espresso dir',
-            exedir, 'psuedo dir', psppath)
+        # COMPLETELY NON-FUNCTIONAL
+        calc = siteconfig.grepy(pwinp, 'calculation')
+        if calc is not None:
+            calc = calc.split("'")[-2]
 
-        # This will remove the old log file.
-        with open(self.log, 'w') as f:
-            f.write(title)
+        if calc in ['nscf', 'bands']:
+            savefile = self.sitesubmitdir.joinpath('calc.tar.gz')
+            if savefile.exists():
+                siteconfig.load_calculator(
+                    outdir=self.site.scratch.abspath())
+            else:
+                raise RuntimeError('Can not executing a refinement '
+                                   'calculation without a calc.tar.gz file')
 
-        if self.site.batchmode:
-            self.localtmp.chdir()
-            shutil.copy(self.localtmp.joinpath('pwcsf.pwi'), self.scratch)
+    def calculate(self):
+        self.initialize()
+        self.site.run('projwfc.x', self.infile, self.outfile)
 
-            command = self.site.get_proc_mpi_command(
-                self.scratch, 'pw.x ' + self.parflags + ' -in pwcsf.pwi')
+    def read_pdos(self):
+        output = self.site.scratch.joinpath('calc.pdos_tot')
+        dos = np.loadtxt(output)
+        self.dos_energies = dos[:, 0] - self.efermi
 
-            with open(self.log, 'ab') as f:
-                exitcode = subprocess.call(command, stdout=f)
-            if exitcode != 0:
-                raise RuntimeError('something went wrong:', exitcode)
-
+        if len(dos[0]) > 3:
+            nspin = 2
+            self.dos_total = [dos[:, 1], dos[:, 2]]
         else:
-            pwinp = self.localtmp.joinpath('pwcsf.pwi')
-            shutil.copy(pwinp, self.scratch)
-            command = ['pw.x', '-in', 'pwcsf.pwi']
+            nspin = 1
+            self.dos_total = dos[:, 1]
 
-            self.scratch.chdir()
-            with open(self.log, 'ab') as f:
-                exitcode = subprocess.call(command, stdout=f)
+        npoints = len(self.dos_energies)
+        channels = {'s': 0, 'p': 1, 'd': 2, 'f': 3}
 
-    def clean(self):
-        """Remove the temporary files and directories"""
-        os.chdir(self.site.submitdir)
+        # read in projections onto atomic orbitals
+        self.pdos = [{} for i in range(self.natoms)]
+        globstr = '{}/calc.pdos_atm*'.format(self.site.scratch)
+        proj = glob.glob(globstr).sort()
+        for i, inpfile in enumerate(proj):
+            pdosinp = np.genfromtxt(inpfile)
+            spl = inpfile.split('#')
+            iatom = int(spl[1].split('(')[0]) - 1
+            channel = spl[2].split('(')[1].rstrip(')').replace('_j', ',j=')
+            jpos = channel.find('j=')
 
-        savefile = self.scratch.joinpath('calc.save')
-        newsave = self.site.submitdir.joinpath('calc.tar.gz')
+            if jpos < 0:
+                # ncomponents = 2*l+1 +1  (latter for m summed up)
+                ncomponents = (2*channels[channel[0]]+2) * nspin
+            else:
+                # ncomponents = 2*j+1 +1  (latter for m summed up)
+                ncomponents = int(2.*float(channel[jpos+2:])) + 2
 
-        if os.path.exists(newsave):
-            newsave.remove()
+            if channel not in list(self.pdos[iatom].keys()):
+                self.pdos[iatom][channel] = np.zeros(
+                    (ncomponents, npoints), float)
 
-        if os.path.exists(savefile):
-            # Remove wavecars by default
-            for f in savefile.files('wfc*.dat'):
-                f.remove()
+                for j in range(ncomponents):
+                    self.pdos[iatom][channel][j] += pdosinp[:, (j+1)]
 
-            with tarfile.open(newsave, 'w:gz') as f:
-                f.add(savefile, arcname=savefile.basename())
+        return self.dos_energies, self.dos_total, self.pdos
 
-        self.scratch.rmtree_p()
 
-        if (hasattr(self.site, 'mpdshutdown')
-           and 'QEASE_MPD_ISSHUTDOWN' not in list(os.environ.keys())):
-            os.environ['QEASE_MPD_ISSHUTDOWN'] = 'yes'
-            os.system(self.site.mpdshutdown)

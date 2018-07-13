@@ -1,20 +1,21 @@
-from __future__ import division, print_function
-
+from six import with_metaclass
+from path import Path
 import contextlib
-import itertools as its
+import itertools
 import os
 import shlex
 import tempfile
-import functools
-from subprocess import call
+import subprocess
 import re
-
-from six import with_metaclass
-import hostlist as hl
-from path import Path
+import hostlist
+import tarfile
+import atexit
 
 
 def grepy(filename, search, instance=-1):
+    if not os.path.exists(filename):
+        return None
+
     results = []
     with open(filename, 'r') as f:
         for line in f:
@@ -30,28 +31,41 @@ def grepy(filename, search, instance=-1):
         return results
 
 
-def preserve_cwd(function):
-    @functools.wraps(function)
-    def decorator(*args, **kwargs):
-        cwd = os.getcwd()
-        try:
-            return function(*args, **kwargs)
-        finally:
-            os.chdir(cwd)
-    return decorator
-
-
 @contextlib.contextmanager
-def working_directory(path):
-    """A context manager which changes the working directory to the given
-    path, and then changes it back to its previous value on exit.
+def cd(path):
+    """Does path management: if the path doesn't exists, create it
+    otherwise, move into it until the indentation is broken.
+
+    Parameters
+    ----------
+    path : str
+        Directory path to create and change into.
     """
-    old_cwd = os.getcwd()
-    os.chdir(path)
+    cwd = os.getcwd()
     try:
+        if not os.path.exists(path):
+            os.makedirs(path)
+        os.chdir(path)
         yield
     finally:
-        os.chdir(old_cwd)
+        os.chdir(cwd)
+
+
+def load_calculator(infile='calc.tar.gz', outdir='.'):
+    """Unpack the contents of calc.save directory."""
+    with tarfile.open(infile, 'r:gz') as f:
+        f.extractall(outdir)
+
+
+def fortran_conversion(value):
+    if isinstance(value, bool):
+        value = '.{}.'.format(str(value).lower())
+    elif isinstance(value, float):
+        value = str(value)
+        if 'e' not in value:
+            value += 'd0'
+
+    return value
 
 
 class Singleton(type):
@@ -64,7 +78,7 @@ class Singleton(type):
         return Singleton._instances[cls]
 
     def __erase(self):
-        'Reset the internal state, mainly for testing purposes'
+        """Reset the internal state, mainly for testing purposes"""
 
         Singleton._instances = {}
 
@@ -82,213 +96,197 @@ class SiteConfig(with_metaclass(Singleton, object)):
             Name of the envoronmental variable that defines the scratch path
     """
 
-    def __init__(self, scheduler=None, usehostfile=False,
-                 scratchenv='SCRATCH'):
+    def __init__(self, scheduler=None, scratchenv='SCRATCH'):
 
-        self.global_scratch = None
         self.scheduler = scheduler
         self.scratchenv = scratchenv
-        self.localtmp = None
+        self.batchmode = False
+        self.global_scratch = None
         self.submitdir = None
-        self.usehostfile = usehostfile
-        self.user_scratch = None
-
-        # default values for the attributes that will be gathered
-        self.batchmode = None
-        self.hosts = None
+        self.scratch = None
         self.jobid = None
         self.nnodes = None
         self.nodelist = None
         self.nprocs = None
-        self.proclist = None
-        self.tpn = None
 
         self.set_variables()
 
     def set_variables(self):
         """Resolve the site attributes based on the scheduler used"""
         if self.scheduler is None:
-            self.set_interactive()
-        elif self.scheduler.lower() == 'slurm':
+            self.submitdir = Path(os.path.abspath(os.getcwd()))
+            self.set_global_scratch(self.submitdir)
+            self.jobid = os.getpid()
+            return
+
+        self.batchmode = True
+        self.set_global_scratch()
+        lsheduler = self.scheduler.lower()
+        if lsheduler == 'slurm':
             self.set_slurm_env()
-        elif self.scheduler.lower() in ['pbs', 'torque']:
+        elif lsheduler in ['pbs', 'torque']:
             self.set_pbs_env()
+        elif lsheduler == 'lbs':
+            self.set_lbs_env()
 
     @classmethod
     def check_scheduler(cls):
-        """Check if either SLURM or PBS/TORQUE are running"""
+        """Check for one of the supported schedulers."""
+        check_shedulers = {
+            'SLURM': 'SLURM_CLUSTER_NAME',
+            'PBS': 'PBS_SERVER',
+            'LBS': 'LSB_EXEC_CLUSTER'
+        }
+
+        # Check for scheduler environment variables
         scheduler = None
-
-        # check id SLURM is installed and running
-        with open(os.devnull, 'w') as devnull:
-            exitcode = call('scontrol version', shell=True, stderr=devnull)
-            if exitcode == 0:
-                scheduler = 'SLURM'
-
-        # check if PBS/TORQUE is installed and running
-        with open(os.devnull, 'w') as devnull:
-            exitcode = call('ps aux | grep pbs | grep -v grep', shell=True,
-                            stderr=devnull)
-            if exitcode == 0:
-                scheduler = 'PBS'
+        for sched, ev in check_shedulers.items():
+            cluster = os.getenv(ev)
+            if cluster:
+                scheduler = sched
+                break
 
         return cls(scheduler)
 
-    def set_interactive(self):
-        """Set the attributes necessary for interactive runs
-
-        - `batchmode` is False
-        - `jobid` is set to the PID
-        - `global_scratch` checks for scratch under `self.scratchenv` if it is
-          not defined used current directory
-        """
-        self.scheduler = None
-        self.batchmode = False
-        self.submitdir = Path(os.path.abspath(os.getcwd()))
-        self.jobid = os.getpid()
-
-        if os.getenv(self.scratchenv) is not None:
-            self.global_scratch = Path(os.getenv(self.scratchenv))
-        else:
-            self.global_scratch = self.submitdir
-
-    def set_global_scratch(self):
+    def set_global_scratch(self, scratchdir=None):
         """Set the global scratch attribute"""
-        scratch = os.getenv(self.scratchenv)
+        if isinstance(scratchdir, str):
+            self.global_scratch = Path(scratchdir)
 
-        if scratch is None:
-            raise OSError('SHELL variable {} is undefied'.format(self.scratchenv))
+        scratch = os.getenv(self.scratchenv)
+        if scratch is None or not os.path.exists(scratch):
+            raise OSError('$SCRATCH variable {} is undefined'.format(
+                self.scratchenv))
         else:
-            if os.path.exists(scratch):
-                self.global_scratch = Path(scratch)
-            else:
-                raise OSError('scratch directory <{}> defined with {} does not exist'.format(
-                    scratch, self.scratchenv))
+            self.global_scratch = Path(scratch)
 
     def set_slurm_env(self):
         """Set the attributes necessary to run the job based on the
         enviromental variables associated with SLURM scheduler
         """
-        self.scheduler = 'slurm'
-        self.batchmode = True
-
-        self.set_global_scratch()
-
         self.jobid = os.getenv('SLURM_JOB_ID')
-        self.submitdir = Path(os.getenv('SUBMITDIR'))
+        self.submitdir = Path(os.getenv('SLURM_SUBMIT_DIR'))
 
         self.nnodes = int(os.getenv('SLURM_JOB_NUM_NODES'))
-        self.tpn = int(os.getenv('SLURM_TASKS_PER_NODE').split('(')[0])
-        self.nodelist = hl.expand_hostlist(os.getenv('SLURM_JOB_NODELIST'))
+        tpn = int(os.getenv('SLURM_TASKS_PER_NODE').split('(')[0])
+        self.nodelist = hostlist.expand_hostlist(
+            os.getenv('SLURM_JOB_NODELIST'))
 
-        self.proclist = list(its.chain.from_iterable(its.repeat(x, self.tpn)
-                             for x in self.nodelist))
-        self.nprocs = len(self.proclist)
+        proclist = list(
+            itertools.chain.from_iterable(itertools.repeat(x, tpn)
+                                          for x in self.nodelist))
+
+        self.nprocs = len(proclist)
+
+    def set_lbs_env(self):
+        """Set the attributes necessary to run the job based on the
+        enviromental variables associated with LBS scheduler
+        """
+        self.jobid = os.getenv('LSB_BATCH_JID')
+        self.submitdir = Path(os.getenv('LS_SUBCWD'))
+
+        nodefile = os.getenv('LSB_HOSTS').split()
+        procs = [_ for _ in nodefile]
+
+        self.nodelist = list(set(procs))
+        self.nnodes = len(self.nodelist)
+        self.nprocs = len(procs)
 
     def set_pbs_env(self):
         """Set the attributes necessary to run the job based on the
         enviromental variables associated with PBS/TORQUE scheduler
         """
-        self.scheduler = 'pbs'
-        self.batchmode = True
-
-        self.set_global_scratch()
-
         self.jobid = os.getenv('PBS_JOBID')
         self.submitdir = Path(os.getenv('PBS_O_WORKDIR'))
 
         nodefile = os.getenv('PBS_NODEFILE')
-        with open(nodefile, 'r') as nf:
-            self.hosts = [x.strip() for x in nf.readlines()]
+        with open(nodefile, 'r') as f:
+            procs = [_.strip() for _ in f.readlines()]
 
-        self.nprocs = len(self.hosts)
-        uniqnodes = sorted(set(self.hosts))
-
-        self.perHostMpiExec = ['mpirun', '-host', ','.join(uniqnodes),
-                               '-np', '{0:d}'.format(len(uniqnodes))]
-
-        self.perProcMpiExec = 'mpiexec -machinefile {nf:s} -np {np:s}'.format(
-            nf=nodefile, np=str(self.nprocs)) + ' -wdir {0:s} {1:s}'
-
-    def make_localtmp(self, workdir):
-        """Create a temporary local directory for the job
-
-        Args:
-            workdir (str) :
-                Name of the working directory for the run
-        """
-        if workdir is None or len(workdir) == 0:
-            self.localtmp = self.submitdir
-        else:
-            self.localtmp = self.submitdir.joinpath(workdir + '_' + str(self.jobid))
-
-        self.localtmp.makedirs_p()
-        return self.localtmp.abspath()
+        self.nodelist = list(set(procs))
+        self.nnodes = len(self.nodelist)
+        self.nprocs = len(procs)
 
     def make_scratch(self):
         """Create a user scratch dir on each node (in the global scratch
         area) in batchmode or a single local scratch directory otherwise
         """
         prefix = '_'.join(['qe', str(os.getuid()), str(self.jobid)])
-        self.user_scratch = Path(tempfile.mkdtemp(prefix=prefix,
-                                                  suffix='_scratch',
-                                                  dir=self.global_scratch))
+        scratch = Path(tempfile.mkdtemp(
+            prefix=prefix,
+            suffix='_scratch',
+            dir=self.global_scratch)).abspath()
 
-        with working_directory(str(self.localtmp)):
+        with cd(self.submitdir):
             if self.batchmode:
-                cmd = self.get_host_mpi_command('mkdir -p {}'.format(str(self.user_scratch)))
-                call(cmd)
+                cmd = self.get_host_mpi_command('mkdir -p {}'.format(scratch))
+                subprocess.call(cmd)
             else:
-                self.user_scratch.makedirs_p()
+                scratch.makedirs_p()
 
-        return self.user_scratch.abspath()
+        self.scratch = scratch
+        atexit.register(self.clean)
 
-    def get_hostfile(self):
-
-        if self.localtmp is None:
-            raise RuntimeError('<localtmp> is not defined yet')
-        else:
-            return self.localtmp.joinpath('hostfile')
-
-    def get_host_mpi_command(self, program, aslist=True):
+    def get_host_mpi_command(self, program):
         """Return a command as list to execute `program` through
         MPI per host
         """
-        command = 'mpirun -host {} '.format(','.join(self.nodelist)) +\
-                  '-np {0:d} {1:s}'.format(self.nnodes, program)
+        command = 'mpirun -host {} -np {} {}'.format(
+            ','.join(self.nodelist), self.nnodes, program)
+        return shlex.split(command)
 
-        if aslist:
-            return shlex.split(command)
-        else:
-            return command
-
-    def get_proc_mpi_command(self, workdir, program, aslist=True):
+    def get_proc_mpi_command(self, workdir, program):
         """Return a command as list to execute `program`
-        through MPI per proc
+        through MPI per processor
         """
-        if self.usehostfile:
-            command = 'mpirun --hostfile {0:s} '.format(self.get_hostfile()) +\
-                      '-np {0:d} '.format(self.nprocs) +                      \
-                      '-wdir {0:s} {1:s}'.format(workdir, program)
-            # should be logged print('Using hostfile',self.get_hostfile())
+        command = 'mpirun -wdir {} {}'.format(workdir, program)
+
+        return shlex.split(command)
+
+    def run(self, exe='pw.x', infile='pw.pwi', outfile='pw.pwo'):
+        """Run an Espresso executable."""
+        mypath = os.path.abspath(os.path.dirname(__file__))
+        exedir = subprocess.check_output(['which', exe]).decode()
+
+        title = '{:<14}: {}\n{:<14}: {}'.format(
+            'python dir', mypath, 'espresso dir', exedir)
+
+        # Copy the input file to the scratch directory.
+        inp = self.submitdir.joinpath(infile)
+        inp.copy(self.scratch)
+
+        # This will remove the old output file.
+        output = self.submitdir.joinpath(outfile)
+        with open(output, 'w') as f:
+            f.write(title)
+
+        if self.batchmode:
+            parflags = ''
+            if self.nprocs > 1:
+                parflags += '-npool {}'.format(self.nprocs)
+            command = self.get_proc_mpi_command(
+                self.scratch, '{} {} -in {}'.format(exe, parflags, infile))
         else:
-            command = 'mpirun -wdir {0:s} {1:s}'.format(workdir, program)
-            # should be logged print('Not Using hostfile', self.get_hostfile())
+            command = [exe, '-in', infile]
 
-        if aslist:
-            return shlex.split(command)
-        else:
-            return command
+        with cd(self.scratch):
+            with open(output, 'ab') as f:
+                state = subprocess.call(command, stdout=f)
 
-    def write_local_hostfile(self):
-        """Write the local hostfile"""
-        with open(self.get_hostfile(), 'w') as fobj:
-            for proc in self.proclist:
-                print(proc, file=fobj)
+        if state != 0:
+            raise RuntimeError('Execution returned a non-zero state')
 
-    def __repr__(self):
-        return "%s(\n%s)" % (
-            (self.__class__.__name__),
-            ' '.join(["\t%s=%r,\n" % (key, getattr(self, key))
-                      for key in sorted(self.__dict__.keys())
-                      if not key.startswith('_')]))
+        return state
+
+    def clean(self):
+        """Remove the temporary files and directories."""
+        os.chdir(self.submitdir)
+
+        calc = self.scratch.joinpath('calc.save')
+        save = self.submitdir.joinpath('calc.tar.gz')
+
+        if os.path.exists(calc):
+            with tarfile.open(save, 'w:gz') as f:
+                f.add(calc, arcname=calc.basename())
+
+        self.scratch.rmtree_p()
