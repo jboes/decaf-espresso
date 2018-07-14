@@ -57,13 +57,30 @@ def load_calculator(infile='calc.tar.gz', outdir='.'):
         f.extractall(outdir)
 
 
-def fortran_conversion(value):
+def value_to_fortran(value):
     if isinstance(value, bool):
         value = '.{}.'.format(str(value).lower())
     elif isinstance(value, float):
         value = str(value)
         if 'e' not in value:
             value += 'd0'
+
+    return value
+
+
+def fortran_to_value(value):
+    if value == '.true.':
+        return True
+    elif value == '.false.':
+        return False
+
+    try:
+        value = int(value)
+    except(ValueError):
+        try:
+            value = float(value)
+        except(ValueError):
+            return value.strip("'")
 
     return value
 
@@ -274,7 +291,10 @@ class SiteConfig(with_metaclass(Singleton, object)):
                 state = subprocess.call(command, stdout=f)
 
         if state != 0:
-            raise RuntimeError('Execution returned a non-zero state')
+            if grepy(outfile, 'JOB DONE.'):
+                pass
+            else:
+                raise RuntimeError('Execution returned a non-zero state')
 
         return state
 
@@ -285,8 +305,6 @@ class SiteConfig(with_metaclass(Singleton, object)):
         calc = self.scratch.joinpath('calc.save')
         save = self.submitdir.joinpath('calc.tar.gz')
 
-        if os.path.exists(calc):
+        if os.path.exists(calc) and not save.exists():
             with tarfile.open(save, 'w:gz') as f:
                 f.add(calc, arcname=calc.basename())
-
-        self.scratch.rmtree_p()

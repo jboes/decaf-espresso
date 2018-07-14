@@ -1,6 +1,7 @@
 from . import siteconfig
 from . import validate
 import numpy as np
+from ase.io import read
 import ase
 import warnings
 import os
@@ -38,9 +39,8 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
 
         # Certain keys are used for fixed IO features or atoms object
         # information. For calculation consistency, user input is ignored.
-        ignored_keys = ['prefix', 'outdir', 'restart_mode', 'ibrav', 'celldm',
-                        'A', 'B', 'C', 'cosAB', 'cosAC', 'cosBC', 'nat',
-                        'ntyp']
+        ignored_keys = ['prefix', 'outdir', 'ibrav', 'celldm', 'A', 'B', 'C',
+                        'cosAB', 'cosAC', 'cosBC', 'nat', 'ntyp']
 
         # Run validation checks
         init_params = self.params.copy()
@@ -58,7 +58,7 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
             else:
                 warnings.warn('No validation for {}'.format(key))
 
-    def initialize(self):
+    def write_pw_input(self, infile='pw.pwi'):
         """Create the input file to start the calculation."""
         for key, value in self.defaults.items():
             setting = self.get_param(key)
@@ -70,11 +70,11 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
         for species in self.species:
             self.params['pseudopotentials'][species] = '{}.UPF'.format(species)
 
-        ase.io.write(self.infile, self.atoms, **self.params)
+        ase.io.write(infile, self.atoms, **self.params)
 
     def calculate(self, atoms, properties=['energy'], changes=None):
         """Perform a calculation."""
-        self.initialize()
+        self.write_pw_input(self.infile)
 
         self.site.make_scratch()
         self.site.run(infile=self.infile, outfile=self.outfile)
@@ -118,111 +118,140 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
 
         return nvalence, nel
 
-    def get_fermi_level(self):
-        efermi = siteconfig.grepy(self.outfile, 'Fermi energy')
+    @staticmethod
+    def get_fermi_level(outfile='pw.pwo'):
+        efermi = siteconfig.grepy(outfile, 'Fermi energy')
         if efermi is not None:
             efermi = float(efermi.split()[-2])
 
         return efermi
 
 
-class QEProjection(Espresso):
+class QEpdos(Espresso):
     """Calculate a projection of wavefunctions for a finished Quantum
     Espresso calculation.
-
-    THIS IS STILL A WORK IN PROGRESS
     """
 
-    def __init__(self, **kwargs):
-        super().__init__(None, None, **kwargs)
-        self.dos_energies = None
-        self.dos_total = None
-        self.pdos = None
+    def __init__(self, site=None, **kwargs):
+        self.atoms = read('pw.pwo')
+        self.efermi = self.get_fermi_level()
+        super().__init__(self.atoms, site, **kwargs)
 
-        if self.get_param('calculation') in ['ncsf', 'bands']:
-            self.infile = 'ncsf.in'
-            self.initialize()
+        # Extract the PROJWFC variables
+        projwfc_args = {}
+        initial_params = self.params.copy()
+        for key, value in initial_params.items():
+            if key in validate.projwfc_vars:
+                projwfc_args[key] = value
+                del kwargs[key]
 
-            self.site.make_scratch()
-            self.site.run(infile=self.infile, outfile=self.outfile)
+        self.projwfc_args = projwfc_args
+        self.params = read_input_parameters()
 
-            atoms = ase.io.read(self.outfile)
-            self.set_atoms(atoms)
-            self.set_results(atoms)
+        # Check for variables that have changed
+        self.recalculate = False
+        for parameter, value in kwargs.items():
+            origional = self.params.get(parameter)
 
-    def write_input(self):
-        with open(self.infile, 'w') as f:
+            if origional is not None:
+                if isinstance(origional, float):
+                    match = np.isclose(origional, value)
+                else:
+                    match = origional == value
+
+                if not match:
+                    self.recalculate = True
+                    self.params.update(kwargs)
+                    break
+
+    def write_projwfc_input(self, infile):
+        with open(infile, 'w') as f:
             f.write("&PROJWFC\n   {:16} = 'calc'\n   {:16} = '.'\n".format(
                 'prefix', 'outdir'))
 
-            for key, value in self.params.items():
-                value = siteconfig.fortran_conversion(value)
+            for key, value in self.projwfc_args.items():
+                value = siteconfig.value_to_fortran(value)
                 f.write('   {:16} = {}\n'.format(key, value))
             f.write('/\n')
 
-    def run(self):
-        """Check if this is a refinement calculation
-        If so, we need the calculation file
-        """
-
-        # COMPLETELY NON-FUNCTIONAL
-        calc = siteconfig.grepy(pwinp, 'calculation')
-        if calc is not None:
-            calc = calc.split("'")[-2]
-
-        if calc in ['nscf', 'bands']:
-            savefile = self.sitesubmitdir.joinpath('calc.tar.gz')
+    def calculate(self):
+        if not self.site.scratch:
+            self.site.make_scratch()
+            savefile = self.site.submitdir.joinpath('calc.tar.gz')
             if savefile.exists():
                 siteconfig.load_calculator(
                     outdir=self.site.scratch.abspath())
             else:
-                raise RuntimeError('Can not executing a refinement '
-                                   'calculation without a calc.tar.gz file')
+                raise RuntimeError(
+                    'Can not execute a refinement calculation '
+                    'without a calc.tar.gz file')
 
-    def calculate(self):
-        self.initialize()
-        self.site.run('projwfc.x', self.infile, self.outfile)
+        if self.recalculate:
+            self.calculate_ncsf()
+        self.write_projwfc_input('projwfc.pwi')
+        self.site.run('projwfc.x', 'projwfc.pwi', 'projwfc.pwo')
 
-    def read_pdos(self):
+    def calculate_ncsf(self):
+        # We are starting a new instance of the calculation
+        self.params['calculation'] = 'nscf'
+        self.write_pw_input('nscf.pwi')
+        self.site.run(infile='nscf.pwi', outfile='nscf.pwo')
+
+    def get_pdos(self):
+        channels = {'s': 0, 'p': 1, 'd': 2, 'f': 3}
         output = self.site.scratch.joinpath('calc.pdos_tot')
-        dos = np.loadtxt(output)
-        self.dos_energies = dos[:, 0] - self.efermi
+        states = np.loadtxt(output)
+        energies = states[:, 0] - self.efermi
 
-        if len(dos[0]) > 3:
+        if len(states[0]) > 3:
             nspin = 2
-            self.dos_total = [dos[:, 1], dos[:, 2]]
+            dos = [states[:, 1], states[:, 2]]
         else:
             nspin = 1
-            self.dos_total = dos[:, 1]
-
-        npoints = len(self.dos_energies)
-        channels = {'s': 0, 'p': 1, 'd': 2, 'f': 3}
+            dos = states[:, 1]
 
         # read in projections onto atomic orbitals
-        self.pdos = [{} for i in range(self.natoms)]
+        pdos = [{} for _ in self.atoms]
         globstr = '{}/calc.pdos_atm*'.format(self.site.scratch)
-        proj = glob.glob(globstr).sort()
-        for i, inpfile in enumerate(proj):
-            pdosinp = np.genfromtxt(inpfile)
-            spl = inpfile.split('#')
-            iatom = int(spl[1].split('(')[0]) - 1
-            channel = spl[2].split('(')[1].rstrip(')').replace('_j', ',j=')
+        proj = sorted(glob.glob(globstr))
+
+        for infile in proj:
+            data = np.genfromtxt(infile)
+
+            split = infile.split('#')
+            iatom = int(split[1].split('(')[0]) - 1
+            channel = split[2].split('(')[1].rstrip(')').replace('_j', ',j=')
             jpos = channel.find('j=')
 
             if jpos < 0:
-                # ncomponents = 2*l+1 +1  (latter for m summed up)
-                ncomponents = (2*channels[channel[0]]+2) * nspin
+                # ncomponents = 2*l+1+1  (latter for m summed up)
+                ncomponents = (2 * channels[channel[0]] + 2) * nspin
             else:
-                # ncomponents = 2*j+1 +1  (latter for m summed up)
-                ncomponents = int(2.*float(channel[jpos+2:])) + 2
+                # ncomponents = 2*j+1+1  (latter for m summed up)
+                ncomponents = int(2 * float(channel[jpos + 2:])) + 2
 
-            if channel not in list(self.pdos[iatom].keys()):
-                self.pdos[iatom][channel] = np.zeros(
-                    (ncomponents, npoints), float)
+            if channel not in list(pdos[iatom].keys()):
+                pdos[iatom][channel] = np.zeros((ncomponents, len(energies)))
 
-                for j in range(ncomponents):
-                    self.pdos[iatom][channel][j] += pdosinp[:, (j+1)]
+                for i in range(ncomponents):
+                    pdos[iatom][channel][i] = data[:, (i + 1)]
 
-        return self.dos_energies, self.dos_total, self.pdos
+        return energies, dos, pdos
 
 
+def read_input_parameters():
+    data = {}
+    with open('pw.pwi') as f:
+        lines = f.read().split('\n')
+
+        for i, line in enumerate(lines):
+            if '=' in line:
+                key, value = [_.strip() for _ in line.split('=')]
+                value = siteconfig.fortran_to_value(value)
+                data[key] = value
+
+            elif 'K_POINTS automatic' in line:
+                kpts = np.array(lines[i + 1].split(), dtype=int)
+                data['kpts'] = tuple(kpts[:3])
+
+    return data
