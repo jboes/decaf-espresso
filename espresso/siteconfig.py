@@ -332,3 +332,5 @@ class SiteConfig(with_metaclass(Singleton, object)):
         if os.path.exists(calc) and not save.exists():
             with tarfile.open(save, 'w:gz') as f:
                 f.add(calc, arcname=calc.basename())
+
+        self.scratch.remove_p()
