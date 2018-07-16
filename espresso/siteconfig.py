@@ -333,4 +333,4 @@ class SiteConfig(with_metaclass(Singleton, object)):
             with tarfile.open(save, 'w:gz') as f:
                 f.add(calc, arcname=calc.basename())
 
-        self.scratch.remove_p()
+        self.scratch.removedirs_p()
