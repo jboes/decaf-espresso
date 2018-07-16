@@ -3,7 +3,6 @@ from path import Path
 import contextlib
 import itertools
 import os
-import shlex
 import tempfile
 import subprocess
 import re
@@ -119,6 +118,7 @@ class SiteConfig(with_metaclass(Singleton, object)):
         self.scratchenv = scratchenv
         self.batchmode = False
         self.global_scratch = None
+        self.cluster = None
         self.submitdir = None
         self.scratch = None
         self.jobid = None
@@ -236,7 +236,7 @@ class SiteConfig(with_metaclass(Singleton, object)):
 
         with cd(self.submitdir):
             if self.batchmode:
-                cmd = self.get_host_mpi_command('mkdir -p {}'.format(scratch))
+                cmd = self.get_exe_command('mkdir -p {}'.format(scratch))
                 subprocess.call(cmd)
             else:
                 scratch.makedirs_p()
@@ -244,21 +244,23 @@ class SiteConfig(with_metaclass(Singleton, object)):
         self.scratch = scratch
         atexit.register(self.clean)
 
-    def get_host_mpi_command(self, program):
+    def get_exe_command(self, program, workdir=None):
         """Return a command as list to execute `program` through
-        MPI per host
+        a supplied executable. If a workdir is provided, assume
+        execution per processor, otherwise, per host.
         """
-        command = 'mpirun -host {} -np {} {}'.format(
-            ','.join(self.nodelist), self.nnodes, program)
-        return shlex.split(command)
+        if self.cluster == 'edison':
+            exe, host, nproc, wd = 'srun', '-w', '-n', '-D'
+        else:
+            exe, host, nproc, wd = 'mpirun', '-host', '-np', '-wdir'
 
-    def get_proc_mpi_command(self, workdir, program):
-        """Return a command as list to execute `program`
-        through MPI per processor
-        """
-        command = 'mpirun -wdir {} {}'.format(workdir, program)
+        if workdir is not None:
+            command = [exe, wd, workdir]
+        else:
+            command = [exe, nproc, self.nnodes, host, ','.join(self.nodelist)]
+        command += program.split()
 
-        return shlex.split(command)
+        return command
 
     def run(self, exe='pw.x', infile='pw.pwi', outfile='pw.pwo'):
         """Run an Espresso executable."""
@@ -281,8 +283,8 @@ class SiteConfig(with_metaclass(Singleton, object)):
             parflags = ''
             if self.nprocs > 1:
                 parflags += '-npool {}'.format(self.nprocs)
-            command = self.get_proc_mpi_command(
-                self.scratch, '{} {} -in {}'.format(exe, parflags, infile))
+            command = self.get_exe_command(
+                '{} {} -in {}'.format(exe, parflags, infile), self.scratch)
         else:
             command = [exe, '-in', infile]
 
