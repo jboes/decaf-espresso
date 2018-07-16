@@ -1,5 +1,6 @@
-from .espresso import Espresso, QEpdos
+from .espresso import Espresso
 from .siteconfig import SiteConfig
+from .postprocess import PDOS
 
-__all__ = ['Espresso', 'SiteConfig', 'QEpdos']
+__all__ = ['Espresso', 'SiteConfig', 'PDOS']
 __version__ = '0.0.1'
