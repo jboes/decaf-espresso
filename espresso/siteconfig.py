@@ -169,7 +169,7 @@ class SiteConfig(with_metaclass(Singleton, object)):
         if isinstance(scratchdir, str):
             self.global_scratch = Path(scratchdir)
 
-        scratch = os.getenv(self.scratchenv)
+        scratch = os.environ.get(self.scratchenv)
         if scratch is None:
             scratch = self.submitdir
         if not os.path.exists(scratch):
