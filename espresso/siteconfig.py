@@ -184,7 +184,7 @@ class SiteConfig(with_metaclass(Singleton, object)):
         return cls(scheduler, cluster)
 
     def set_global_scratch(self, scratchdir=None):
-        """Set the global scratch attribute"""
+        """Set the global scratch attribute."""
         if isinstance(scratchdir, str):
             self.global_scratch = Path(scratchdir)
 
@@ -278,7 +278,8 @@ class SiteConfig(with_metaclass(Singleton, object)):
         if workdir is not None:
             command = [exe, wd, workdir]
         else:
-            command = [exe, nproc, self.nnodes, host, ','.join(self.nodelist)]
+            command = [exe, nproc, str(self.nnodes),
+                       host, ','.join(self.nodelist)]
         command += program.split()
 
         return command
