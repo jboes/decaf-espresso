@@ -1,3 +1,4 @@
+import numpy as np
 from six import with_metaclass
 from path import Path
 import contextlib
@@ -9,6 +10,24 @@ import re
 import hostlist
 import tarfile
 import atexit
+
+
+def read_input_parameters():
+    data = {}
+    with open('pw.pwi') as f:
+        lines = f.read().split('\n')
+
+        for i, line in enumerate(lines):
+            if '=' in line:
+                key, value = [_.strip() for _ in line.split('=')]
+                value = fortran_to_value(value)
+                data[key] = value
+
+            elif 'K_POINTS automatic' in line:
+                kpts = np.array(lines[i + 1].split(), dtype=int)
+                data['kpts'] = tuple(kpts[:3])
+
+    return data
 
 
 def grepy(filename, search, instance=-1):
@@ -112,7 +131,7 @@ class SiteConfig(with_metaclass(Singleton, object)):
             Name of the envoronmental variable that defines the scratch path
     """
 
-    def __init__(self, scheduler=None, cluster=None, scratchenv=None):
+    def __init__(self, scheduler=None, cluster=None, scratchenv=''):
         self.scheduler = scheduler
         self.cluster = cluster
         self.scratchenv = scratchenv
@@ -136,7 +155,6 @@ class SiteConfig(with_metaclass(Singleton, object)):
             return
 
         self.batchmode = True
-        self.set_global_scratch()
         lsheduler = self.scheduler.lower()
         if lsheduler == 'slurm':
             self.set_slurm_env()
@@ -144,6 +162,7 @@ class SiteConfig(with_metaclass(Singleton, object)):
             self.set_pbs_env()
         elif lsheduler == 'lbs':
             self.set_lbs_env()
+        self.set_global_scratch()
 
     @classmethod
     def check_scheduler(cls):
@@ -169,7 +188,7 @@ class SiteConfig(with_metaclass(Singleton, object)):
         if isinstance(scratchdir, str):
             self.global_scratch = Path(scratchdir)
 
-        scratch = os.environ.get(self.scratchenv)
+        scratch = os.getenv(self.scratchenv)
         if scratch is None:
             scratch = self.submitdir
         if not os.path.exists(scratch):

@@ -1,124 +1,118 @@
-import os
+from .espresso import Espresso
+from . import siteconfig
+from . import validate
 import numpy as np
+from ase.io import read
+import glob
 
 
-class XEspresso():
+class PDOS(Espresso):
+    """Calculate a projection of wavefunctions for a finished Quantum
+    Espresso calculation.
+    """
 
-    def calc_pdos(self,
-        Emin = None,
-        Emax = None,
-        DeltaE = None,
-        nscf = False,
-        tetrahedra = False,
-        slab = False,
-        kpts = None,
-        kptshift = None,
-        nbands = None,
-        ngauss = None,
-        sigma = None,
-        nscf_fermilevel=False,
-        add_higher_channels=False):
-        """
-        Calculate (projected) density of states.
-        - Emin,Emax,DeltaE define the energy window.
-        - nscf=True will cause a non-selfconsistent calculation to be performed
-          on top of a previous converged scf calculation, with the advantage
-          that more kpts and more nbands can be defined improving the quality/
-          increasing the energy range of the DOS.
-        - tetrahedra=True (in addition to nscf=True) means use tetrahedron
-          (i.e. smearing-free) method for DOS
-        - slab=True: use triangle method insead of tetrahedron method
-          (for 2D system perp. to z-direction)
-        - sigma != None sets/overrides the smearing to calculate the DOS
-          (also overrides tetrahedron/triangle settings)
-        - get_overlap_integrals=True: also return k-point- and band-resolved
-          projections (which are summed up and smeared to obtain the PDOS)
-        Returns an array containing the energy window,
-        the DOS over the same range,
-        and the PDOS as an array (index: atom number 0..n-1) of dictionaries.
-        The dictionary keys are the angular momentum channels 's','p','d'...
-        (or e.g. 'p,j=0.5', 'p,j=1.5' in the case of LS-coupling).
-        Each dictionary contains an array of arrays of the total and
-        m-resolved PDOS over the energy window.
-        In case of spin-polarization, total up is followed by total down, by
-        first m with spin up, etc...
-        """
-        efermi = self.get_fermi_level()
+    def __init__(self, site=None, **kwargs):
+        self.atoms = read('pw.pwo')
+        self.efermi = self.get_fermi_level()
+        super().__init__(self.atoms, site, **kwargs)
 
-        # run a nscf calculation with e.g. tetrahedra or more k-points etc.
-        if nscf:
-            if not hasattr(self, 'natoms'):
-                self.atoms2species()
-                self.natoms = len(self.atoms)
-            self.write_input(filename='pwnscf.inp',
-                             calculation='nscf', overridekpts=kpts,
-                             overridekptshift=kptshift,
-                             overridenbands=nbands)
-            self.run('pw.x', 'pwnscf.inp', 'pwnscf.log')
-            if nscf_fermilevel:
-                p = os.popen('grep Fermi '+self.localtmp+'/pwnscf.log|tail -1', 'r')
-                efermi = float(p.readline().split()[-2])
-                p.close()
+        # Extract the PROJWFC variables
+        projwfc_args = {}
+        initial_params = self.params.copy()
+        for key, value in initial_params.items():
+            if key in validate.projwfc_vars:
+                projwfc_args[key] = value
+                del kwargs[key]
 
-        # remove old wave function projections
-        os.system('rm -f '+self.scratch+'/*_wfc*')
-        # create input for projwfc.x
-        fpdos = open(self.localtmp+'/pdos.inp', 'w')
-        print('&PROJWFC\n  prefix=\'calc\',\n  outdir=\'.\',', file=fpdos)
-        if Emin is not None:
-            print('  Emin = '+num2str(Emin+efermi)+',', file=fpdos)
-        if Emax is not None:
-            print('  Emax = '+num2str(Emax+efermi)+',', file=fpdos)
-        if DeltaE is not None:
-            print('  DeltaE = '+num2str(DeltaE)+',', file=fpdos)
-        if ngauss is not None:
-            print('  ngauss = '+str(ngauss)+',', file=fpdos)
-        if sigma is not None:
-            print('  degauss = '+num2str(sigma/Rydberg)+',', file=fpdos)
-        print('/', file=fpdos)
-        fpdos.close()
-        # run projwfc.x
-        self.site.run('projwfc.x', 'pdos.inp', 'pdos.log')
+        self.projwfc_args = projwfc_args
+        self.params = read_input_parameters()
 
+        # Check for variables that have changed
+        self.recalculate = False
+        for parameter, value in kwargs.items():
+            origional = self.params.get(parameter)
 
-        # read in total density of states
-        dos = np.loadtxt(self.scratch + '/calc.pdos_tot')
-        if len(dos[0]) > 3:
+            if origional is not None:
+                if isinstance(origional, float):
+                    match = np.isclose(origional, value)
+                else:
+                    match = origional == value
+
+                if not match:
+                    self.recalculate = True
+                    self.params.update(kwargs)
+                    break
+
+    def write_projwfc_input(self, infile):
+        with open(infile, 'w') as f:
+            f.write("&PROJWFC\n   {:16} = 'calc'\n   {:16} = '.'\n".format(
+                'prefix', 'outdir'))
+
+            for key, value in self.projwfc_args.items():
+                value = siteconfig.value_to_fortran(value)
+                f.write('   {:16} = {}\n'.format(key, value))
+            f.write('/\n')
+
+    def calculate(self):
+        if not self.site.scratch:
+            self.site.make_scratch()
+            savefile = self.site.submitdir.joinpath('calc.tar.gz')
+            if savefile.exists():
+                siteconfig.load_calculator(
+                    outdir=self.site.scratch.abspath())
+            else:
+                raise RuntimeError(
+                    'Can not execute a refinement calculation '
+                    'without a calc.tar.gz file')
+
+        if self.recalculate:
+            self.calculate_ncsf()
+        self.write_projwfc_input('projwfc.pwi')
+        self.site.run('projwfc.x', 'projwfc.pwi', 'projwfc.pwo')
+
+    def calculate_ncsf(self):
+        # We are starting a new instance of the calculation
+        self.params['calculation'] = 'nscf'
+        self.write_pw_input('nscf.pwi')
+        self.site.run(infile='nscf.pwi', outfile='nscf.pwo')
+
+    def get_pdos(self):
+        channels = {'s': 0, 'p': 1, 'd': 2, 'f': 3}
+        output = self.site.scratch.joinpath('calc.pdos_tot')
+        states = np.loadtxt(output)
+        energies = states[:, 0] - self.efermi
+
+        if len(states[0]) > 3:
             nspin = 2
-            self.dos_total = [dos[:, 1], dos[:, 2]]
+            dos = [states[:, 1], states[:, 2]]
         else:
             nspin = 1
-            self.dos_total = dos[:,1]
-        self.dos_energies = dos[:,0] - efermi
-        npoints = len(self.dos_energies)
+            dos = states[:, 1]
 
-        channels = {'s':0, 'p':1, 'd':2, 'f':3}
         # read in projections onto atomic orbitals
-        self.pdos = [{} for i in range(self.natoms)]
-        p = os.popen('ls '+self.scratch+'/calc.pdos_atm*')
-        proj = p.readlines()
-        p.close()
-        proj.sort()
-        for i, inp in enumerate(proj):
-            inpfile = inp.strip()
-            pdosinp = np.genfromtxt(inpfile)
-            spl = inpfile.split('#')
-            iatom = int(spl[1].split('(')[0])-1
-            channel = spl[2].split('(')[1].rstrip(')').replace('_j',',j=')
-            jpos = channel.find('j=')
-            if jpos<0:
-                #ncomponents = 2*l+1 +1  (latter for m summed up)
-                ncomponents = (2*channels[channel[0]]+2) * nspin
-            else:
-                #ncomponents = 2*j+1 +1  (latter for m summed up)
-                ncomponents = int(2.*float(channel[jpos+2:]))+2
-            if channel not in list(self.pdos[iatom].keys()):
-                self.pdos[iatom][channel] = np.zeros((ncomponents,npoints), np.float)
-                first = True
-            else:
-                first = False
-            if add_higher_channels or first:
-                for j in range(ncomponents):
-                    self.pdos[iatom][channel][j] += pdosinp[:,(j+1)]
+        pdos = [{} for _ in self.atoms]
+        globstr = '{}/calc.pdos_atm*'.format(self.site.scratch)
+        proj = sorted(glob.glob(globstr))
 
-        return self.dos_energies, self.dos_total, self.pdos
+        for infile in proj:
+            data = np.genfromtxt(infile)
+
+            split = infile.split('#')
+            iatom = int(split[1].split('(')[0]) - 1
+            channel = split[2].split('(')[1].rstrip(')').replace('_j', ',j=')
+            jpos = channel.find('j=')
+
+            if jpos < 0:
+                # ncomponents = 2*l+1+1  (latter for m summed up)
+                ncomponents = (2 * channels[channel[0]] + 2) * nspin
+            else:
+                # ncomponents = 2*j+1+1  (latter for m summed up)
+                ncomponents = int(2 * float(channel[jpos + 2:])) + 2
+
+            if channel not in list(pdos[iatom].keys()):
+                pdos[iatom][channel] = np.zeros((ncomponents, len(energies)))
+
+                for i in range(ncomponents):
+                    pdos[iatom][channel][i] = data[:, (i + 1)]
+
+        return energies, dos, pdos
