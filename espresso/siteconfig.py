@@ -112,13 +112,12 @@ class SiteConfig(with_metaclass(Singleton, object)):
             Name of the envoronmental variable that defines the scratch path
     """
 
-    def __init__(self, scheduler=None, scratchenv='SCRATCH'):
-
+    def __init__(self, scheduler=None, cluster=None, scratchenv=None):
         self.scheduler = scheduler
+        self.cluster = cluster
         self.scratchenv = scratchenv
         self.batchmode = False
         self.global_scratch = None
-        self.cluster = None
         self.submitdir = None
         self.scratch = None
         self.jobid = None
@@ -163,7 +162,7 @@ class SiteConfig(with_metaclass(Singleton, object)):
                 scheduler = sched
                 break
 
-        return cls(scheduler)
+        return cls(scheduler, cluster)
 
     def set_global_scratch(self, scratchdir=None):
         """Set the global scratch attribute"""
@@ -171,11 +170,14 @@ class SiteConfig(with_metaclass(Singleton, object)):
             self.global_scratch = Path(scratchdir)
 
         scratch = os.getenv(self.scratchenv)
-        if scratch is None or not os.path.exists(scratch):
-            raise OSError('$SCRATCH variable {} is undefined'.format(
-                self.scratchenv))
-        else:
-            self.global_scratch = Path(scratch)
+        if scratch is None:
+            scratch = self.submitdir
+        if not os.path.exists(scratch):
+            raise OSError(
+                '$SCRATCH variable {} points '
+                'to non-existent path'.format(self.scratchenv))
+
+        self.global_scratch = Path(scratch)
 
     def set_slurm_env(self):
         """Set the attributes necessary to run the job based on the
