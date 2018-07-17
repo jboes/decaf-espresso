@@ -25,7 +25,7 @@ class PDOS(Espresso):
                 del kwargs[key]
 
         self.projwfc_args = projwfc_args
-        self.params = read_input_parameters()
+        self.params = siteconfig.read_input_parameters()
 
         # Check for variables that have changed
         self.recalculate = False
