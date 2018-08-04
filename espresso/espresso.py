@@ -1,6 +1,7 @@
 from . import siteconfig
 from . import validate
 import numpy as np
+import six
 import ase
 import warnings
 import os
@@ -53,6 +54,8 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
                 # Used to convert values from eV to Ry
                 if new_val is not None:
                     self.params[key] = new_val
+                elif isinstance(val, six.string_types):
+                    self.params[key] = str(val)
             else:
                 warnings.warn('No validation for {}'.format(key))
 

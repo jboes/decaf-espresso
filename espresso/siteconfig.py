@@ -323,7 +323,9 @@ class SiteConfig(with_metaclass(Singleton, object)):
             if grepy(outfile, 'JOB DONE.'):
                 pass
             else:
-                raise RuntimeError('Execution returned a non-zero state')
+                raise RuntimeError(
+                    'Execution returned a non-zero state: '
+                    '{}'.format(' '.join(command)))
 
         return state
 
