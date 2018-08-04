@@ -10,11 +10,12 @@ import re
 import hostlist
 import tarfile
 import atexit
+import shutil
 
 
-def read_input_parameters():
+def read_input_parameters(infile='pw.pwi'):
     data = {}
-    with open('pw.pwi') as f:
+    with open(infile) as f:
         lines = f.read().split('\n')
 
         for i, line in enumerate(lines):
@@ -26,6 +27,8 @@ def read_input_parameters():
             elif 'K_POINTS automatic' in line:
                 kpts = np.array(lines[i + 1].split(), dtype=int)
                 data['kpts'] = tuple(kpts[:3])
+            elif 'K_POINTS gamma' in line:
+                data['kpts'] = 1
 
     return data
 
@@ -303,7 +306,8 @@ class SiteConfig(with_metaclass(Singleton, object)):
 
         if self.batchmode:
             parflags = ''
-            if self.nprocs > 1:
+            kpts = read_input_parameters()['kpts']
+            if self.nprocs > 1 and kpts > self.nprocs:
                 parflags += '-npool {}'.format(self.nprocs)
             command = self.get_exe_command(
                 '{} {} -in {}'.format(exe, parflags, infile), self.scratch)
@@ -333,4 +337,4 @@ class SiteConfig(with_metaclass(Singleton, object)):
             with tarfile.open(save, 'w:gz') as f:
                 f.add(calc, arcname=calc.basename())
 
-        self.scratch.removedirs_p()
+        shutil.rmtree(self.scratch)

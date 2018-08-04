@@ -47,6 +47,7 @@ def degauss(calc, val):
         calc.params['occupations'] = 'fixed'
         moments = calc.atoms.get_initial_magnetic_moments()
         calc.params['tot_magnetization'] = moments.sum()
+        calc.params['nspin'] = 2
         warnings.warn("'degauss' is zero. Enforcing fixed "
                       "overall magnetic moment")
 
