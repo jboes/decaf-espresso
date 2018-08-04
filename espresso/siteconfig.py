@@ -276,8 +276,6 @@ class SiteConfig(with_metaclass(Singleton, object)):
         exe, host, nproc, wd = 'mpirun', '-host', '-np', '-wdir'
         if self.cluster == 'edison':
             exe, host, nproc, wd = 'srun', '-w', '-n', '-D'
-        elif self.cluster == 'sherlock':
-            exe = 'mpiexec'
 
         if workdir is not None:
             command = [exe, wd, workdir]
