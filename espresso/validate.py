@@ -2,6 +2,7 @@ from ase.units import Rydberg, Bohr
 import numpy as np
 import os
 import warnings
+import six
 
 
 def dipfield(calc, val):
@@ -30,7 +31,7 @@ def tprnfor(calc, val):
 
 def occupations(calc, val):
     """"""
-    assert isinstance(val, str)
+    assert isinstance(val, six.string_types)
     values = ['smearing', 'tetrahedra', 'tetrahedra_lin',
               'tetrahedra_opt', 'fixed', 'from_input']
 
@@ -88,7 +89,7 @@ def tot_magnetization(calc, val):
 
 def ion_dynamics(calc, val):
     """"""
-    assert isinstance(val, str)
+    assert isinstance(val, six.string_types)
 
     calculator = calc.get_param('calculation')
     calculation(calc, calculator)
@@ -187,7 +188,7 @@ def ecutfock(calc, val):
 
 def calculation(calc, val):
     """"""
-    assert isinstance(val, str)
+    assert isinstance(val, six.string_types)
 
     values = ['scf', 'nscf', 'bands', 'relax', 'md', 'vc-relax', 'vc-md']
     assert val in values
@@ -195,18 +196,18 @@ def calculation(calc, val):
 
 def prefix(calc, val):
     """"""
-    assert isinstance(val, str)
+    assert isinstance(val, six.string_types)
     warnings.warn("For directory consistency, 'prefix' is ignored")
 
 
 def outdir(calc, val):
     """"""
-    assert isinstance(val, str)
+    assert isinstance(val, six.string_types)
 
 
 def disk_io(calc, val):
     """"""
-    assert isinstance(val, str)
+    assert isinstance(val, six.string_types)
 
     if isinstance(val, str):
         values = ['high', 'medium', 'low', 'none']
@@ -221,7 +222,7 @@ def kpts(calc, val):
 
 def input_dft(calc, val):
     """"""
-    assert isinstance(val, str)
+    assert isinstance(val, six.string_types)
 
 
 def mixing_beta(calc, val):
