@@ -134,7 +134,7 @@ class SiteConfig(with_metaclass(Singleton, object)):
             Name of the envoronmental variable that defines the scratch path
     """
 
-    def __init__(self, scheduler=None, cluster=None, scratchenv=''):
+    def __init__(self, scheduler=None, cluster=None, scratchenv='/tmp'):
         self.scheduler = scheduler
         self.cluster = cluster
         self.scratchenv = scratchenv
@@ -273,10 +273,11 @@ class SiteConfig(with_metaclass(Singleton, object)):
         a supplied executable. If a workdir is provided, assume
         execution per processor, otherwise, per host.
         """
+        exe, host, nproc, wd = 'mpirun', '-host', '-np', '-wdir'
         if self.cluster == 'edison':
             exe, host, nproc, wd = 'srun', '-w', '-n', '-D'
-        else:
-            exe, host, nproc, wd = 'mpirun', '-host', '-np', '-wdir'
+        elif self.cluster == 'sherlock':
+            exe = 'mpiexec'
 
         if workdir is not None:
             command = [exe, wd, workdir]
