@@ -384,7 +384,7 @@ class SiteConfig():
                 state = subprocess.call(command, stdout=f)
 
         if state != 0:
-            if grepy(outfile, 'JOB DONE.'):
+            if grepy('JOB DONE.', outfile):
                 pass
             else:
                 raise RuntimeError(

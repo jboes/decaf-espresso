@@ -107,7 +107,7 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
         for species in self.species:
             fname = os.path.join(
                 self.get_param('pseudo_dir'), '{}.UPF'.format(species))
-            valence = siteconfig.grepy(fname, 'z valence|z_valence').split()[0]
+            valence = siteconfig.grepy('z valence|z_valence', fname).split()[0]
             nel[species] = int(float(valence))
 
         nvalence = np.zeros_like(self.symbols, int)
@@ -121,7 +121,7 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
 
     @staticmethod
     def get_fermi_level(outfile='pw.pwo'):
-        efermi = siteconfig.grepy(outfile, 'Fermi energy')
+        efermi = siteconfig.grepy('Fermi energy', outfile)
         if efermi is not None:
             efermi = float(efermi.split()[-2])
 
