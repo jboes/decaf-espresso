@@ -215,7 +215,13 @@ def disk_io(calc, val):
 
 
 def kpts(calc, val):
-    """"""
+    """Test k-points to be 'gamma' or list_like of 3 values.
+    Only automatic assignment is currently supported.
+
+    https://www.quantum-espresso.org/Doc/INPUT_PW.html#idm45922794051696
+    """
+    if val == 'gamma':
+        return
     assert isinstance(val, (tuple, list, np.ndarray))
     assert len(val) == 3
 

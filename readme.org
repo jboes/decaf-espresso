@@ -1,0 +1,131 @@
+#+Title: Decaf Espresso
+#+Author: Jacob Boes
+#+OPTIONS: toc:nil
+#+LATEX_HEADER: \setlength{\parindent}{0em}
+
+* Introduction
+Decaf espresso is light-weight [[https://wiki.fysik.dtu.dk/ase/][ASE]] wrapper for Quantum Espresso with convenient features inspired by [[https://github.com/vossjo/ase-espresso][ase-espresso]]. The goal is to produce a simplified version which allows for most of the non-interactive functionality without so much of the verbosity of ase-espresso. The code is meant to be short and segmented into logical portions to help those who are new to Quantum Espresso learn more easily. The majority of the simplification comes from farming out the =io= functionality to ASE, which also amounts to less code to maintain.
+
+*Pros:*
+- Input units are eV (similar to ase-espresso) and converted automatically.
+- All input keywords are identical to Quantum Espresso to prevent confusion. See: [[https://www.quantum-espresso.org/Doc/INPUT_PW.html][QE Inputs]].
+- Automatic validation of (some) parameters inspired by [[https://github.com/jkitchin/vasp][Vaspy]].
+- Straight forward record of default parameters used for simplified documentation.
+- Automatic handling of calculation node scratch assignment for general clusters (SLURM, LSF, PBS/TORQUE), to prevent unnecessary disk-io.
+- Automatic handling of MPI execution of general clusters (SLURM, LSF, PBS/TORQUE) and intelligent assignment of k-point parallelization (npool).
+- Specific executable setups for compatibility on SLAC, Sherlock, and NERSC clusters. (works out of the box)
+- Has post-processing functions which are not yet available in ASE.
+- Written in Python 3
+- DRY code with extensive documentation.
+
+*Cons:*
+- Not all post processing features available from ase-espresso have been implemented.
+- No support for interactive ASE without efficiency loss
+- Not all parameters are currently validated or tested (such as DFT+U parameters).
+- Limited testing in Python 2 and will not be supported moving forward.
+
+* Installation
+** Pip installation
+decaf-espresso is most easily installed with pip using:
+
+#+BEGIN_SRC sh
+pip install decaf-espresso
+#+END_SRC
+
+For Mac OSX, homebrew can be used in place of pip
+
+#+BEGIN_SRC sh
+brew install decaf-espresso
+#+END_SRC
+
+For usage on high-performance computers, installation will need to be performed locally which can be done using:
+
+#+BEGIN_SRC sh
+pip install --user decaf-espresso
+#+END_SRC
+
+These commands will install all of the necessary dependencies for you. 
+
+** Source installation
+Alternatively, a version with the most recent commits can be installed through git by running the following in your home directory.
+
+#+BEGIN_SRC sh
+git clone https://github.com/jboes/decaf-espresso.git 
+#+END_SRC
+
+Then, add =~/decaf-espresso= to your =PYTHONPATH= by adding the following line to your =~/.bashrc= file.
+
+#+BEGIN_SRC sh
+export PYTHONPATH=~/decaf-espresso:$PYTHONPATH
+#+END_SRC
+
+Once cloned, the requirements and be installed by running the following commands (Add the =--user= argument if needed):
+
+#+BEGIN_SRC sh
+cd ~/decaf-espresso
+pip install -r requirements.txt
+#+END_SRC
+
+* Parameter Validation
+Parameter validation is currently performed for the arguments which I use most frequently for my calculations, but the general formula for validation is easily extensible by anyone. The basic idea is that any [[https://www.quantum-espresso.org/Doc/INPUT_PW.html][Qunatum Espresso Input]] with a similarly named function in the [[./espresso/validate.py][validation module]] will have the entailed function executed if the parameter is input by the user.
+
+For example, If I were to initialize a calculation as:
+
+#+BEGIN_SRC python :results output org drawer
+from espresso import Espresso
+
+calc = Espresso(kpts=(1, 1, 1))
+#+END_SRC
+
+Will execute the similarly named validation function:
+
+#+BEGIN_SRC python :results output org drawer
+def kpts(calc, val):
+    """Test k-points to be 'gamma' or list_like of 3 values.
+    Only automatic assignment is currently supported.
+
+    https://www.quantum-espresso.org/Doc/INPUT_PW.html#idm45922794051696
+    """
+    if val == 'gamma':
+        return
+    assert isinstance(val, (tuple, list, np.ndarray))
+    assert len(val) == 3
+#+END_SRC
+
+If an invalid input is used, and exception will be raised.
+
+#+BEGIN_SRC python :exports both
+from espresso import Espresso
+
+calc = Espresso(kpts=(1, 1))
+#+END_SRC
+
+#+RESULTS:
+: Traceback (most recent call last):
+:   File "Org SRC", line 3, in <module>
+:     calc = Espresso(kpts=(1, 1))
+:   File "/home/jboes/research/decaf-espresso/espresso/espresso.py", line 62, in __init__
+:     new_val = f(self, val)
+:   File "/home/jboes/research/decaf-espresso/espresso/validate.py", line 226, in kpts
+:     assert len(val) == 3
+: AssertionError
+
+TODO: Make a more helpful validation error.
+
+** Writing a validation function
+Each validation function follows the simple formula:
+
+#+BEGIN_SRC python :results output org drawer
+def parameter_name(calc, val):
+    """Helpful docstring."""
+    assert # An appropraite test here
+
+    return updated_val  # optional
+#+END_SRC
+
+Where =parameter_name= is the exact name of the Quantum espresso parameter, and =(calc, val)= are always passed as arguments. Here, =calc= is the =Espresso= calculator object, which can be used to all other calculator parameters and =val= is the user defined value for the given parameter which can be directly tested against.
+
+In decaf-espresso, validation functions also server the double role of updating certain values. For Example, Quantum Espresso takes units of energy in Rydbergs, but eV are more commonly used in surface science. So, any validation function which takes Rydbergs will also return and =updated_val= which is the value converted to Rydbergs from eV so the user can specify inputs in eV. This sacrifices some readability, but avoids looping over extra lists of known value types, helping keep the code DRY.
+
+* Example scripts
+Coming Soon.

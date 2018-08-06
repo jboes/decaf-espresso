@@ -8,9 +8,13 @@ import os
 
 
 class Espresso(ase.calculators.calculator.FileIOCalculator):
-    """Decaf Espresso
+    """Decaf Espresso - A Light weight ASE interface for Quantum Espresso.
 
-    A Light weight ASE interface for Quantum Espresso
+    Validation of arguments present in validate.py will be performed
+    automatically.
+
+    Configuration of site executables and scratch directories will be
+    performed automatically with siteconfig.py
     """
 
     implemented_properties = [
@@ -19,17 +23,23 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
     def __init__(
             self,
             atoms=None,
-            site=None,
             **kwargs):
+        """Initialize the calculators by validating the input key word
+        arguments corresponding to valid Quantum Espresso arguments:
+        https://www.quantum-espresso.org/Doc/INPUT_PW.html
+
+        Geometric aspects of the calculation are defined by the atoms
+        object, so geometry related arguments are ignored.
+
+        Parameters:
+        -----------
+        atoms : Atoms object
+            ASE atoms to attach the calculator with.
+        """
         self.params = kwargs.copy()
         self.defaults = validate.variables
         self.results = {}
-        self.infile = 'pw.pwi'
-        self.outfile = 'pw.pwo'
-
-        self.site = site
-        if site is None:
-            self.site = siteconfig.SiteConfig.check_scheduler()
+        self.site = siteconfig.SiteConfig.check_scheduler()
 
         if atoms:
             atoms.set_calculator(self)
@@ -60,7 +70,14 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
                 warnings.warn('No validation for {}'.format(key))
 
     def write_pw_input(self, infile='pw.pwi'):
-        """Create the input file to start the calculation."""
+        """Create the input file to start the calculation. Defines unspecified
+        defaults as defined in validate.py.
+
+        Parameters:
+        -----------
+        infile : str
+            Name of the input file which will be written.
+        """
         for key, value in self.defaults.items():
             setting = self.get_param(key)
             if setting is not None:
@@ -75,31 +92,52 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
 
     def calculate(self, atoms, properties=['energy'], changes=None):
         """Perform a calculation."""
-        self.write_pw_input(self.infile)
+        self.write_pw_input('pw.pwi')
 
         self.site.make_scratch()
-        self.site.run(infile=self.infile, outfile=self.outfile)
+        self.site.run(infile='pw.pwi', outfile='pw.pwo')
 
-        atoms = ase.io.read(self.outfile)
+        atoms = ase.io.read('pw.pwo')
         self.set_atoms(atoms)
         self.set_results(atoms)
 
     def set_results(self, atoms):
+        """Set the results of the calculator."""
         self.results = atoms._calc.results
 
     def set_atoms(self, atoms):
+        """Set the atoms object to the calculator."""
         self.atoms = atoms.copy()
 
     def get_param(self, parameter):
         """Return the parameter associated with a calculator,
         otherwise, return the default value.
+
+        Parameters:
+        -----------
+        parameter : str
+            Name of the parameter to retrieve the value of.
+
+        Returns:
+        --------
+        value : bool | int | float | str | None
+            The parameter value specified by the user, or None
         """
         value = self.params.get(parameter, self.defaults[parameter])
 
         return value
 
     def get_nvalence(self):
-        """Get number of valence electrons from pseudopotential files"""
+        """Get number of valence electrons from pseudopotential file associated
+        with an atoms object.
+
+        Returns:
+        --------
+        nvalence : ndarray (N,)
+            Number of valence electrons associated with each atom N.
+        nel : dict
+            Number of electrons associated with species in the atoms object.
+        """
         if hasattr(self, 'nel'):
             return self.nvalence, self.nel
 
@@ -121,6 +159,18 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
 
     @staticmethod
     def get_fermi_level(outfile='pw.pwo'):
+        """Return the fermi level in eV from a completed calculation file.
+
+        Parameters:
+        -----------
+        outfile : str
+            The completed calculation file to read the fermi level from.
+
+        Returns:
+        --------
+        efermi : float
+            The fermi energy in eV.
+        """
         efermi = siteconfig.grepy('Fermi energy', outfile)
         if efermi is not None:
             efermi = float(efermi.split()[-2])

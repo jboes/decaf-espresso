@@ -1,1 +1,4 @@
-gbrv1.5pbe
+build/
+decaf_espresso.egg-info/
+dist/
+gbrv1.5pbe/

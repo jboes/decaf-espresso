@@ -208,7 +208,7 @@ class SiteConfig():
 
         Returns:
         --------
-        cls : classmethod
+        cls : SiteConfig object
             Runs SiteConfig with the found arguments.
         """
         check_shedulers = {
@@ -272,13 +272,18 @@ class SiteConfig():
         self.nnodes = len(self.nodelist)
         self.nprocs = len(procs)
 
-    def make_scratch(self):
-        """Create a user scratch dir on each calculation node if batch mode
-        or a single local scratch directory otherwise. Will attempt to call
-        from a user defined NODE_SCRATCH variable, then /tmp, then use the
+    def make_scratch(self, save_calc=True):
+        """Create a scratch directory on each calculation node if batch mode
+        or a single scratch directory otherwise. Will attempt to call
+        from $L_SCRATCH_JOB variable, then /tmp, then use the
         submission directory.
 
         This function will automatically cleanup upon exiting Python.
+
+        Parameters:
+        -----------
+        save_calc : bool
+            Whether to save the calculation folder or not.
         """
         scratch_paths = [os.getenv('L_SCRATCH_JOB'), '/tmp', self.submitdir]
         for scratch in scratch_paths:
@@ -298,7 +303,7 @@ class SiteConfig():
                 scratch.makedirs_p()
 
         self.scratch = scratch
-        atexit.register(self.clean)
+        atexit.register(self.clean, save_calc)
 
     def get_exe_command(self, program, workdir=None):
         """Return a command as list to execute subprocess through
@@ -397,14 +402,14 @@ class SiteConfig():
 
         return state
 
-    def clean(self):
+    def clean(self, save_calc=True):
         """Remove temporary files and directories."""
         os.chdir(self.submitdir)
 
         calc = self.scratch.joinpath('calc.save')
         save = self.submitdir.joinpath('calc.tar.gz')
 
-        if os.path.exists(calc) and not save.exists():
+        if os.path.exists(calc) and save_calc:
             with tarfile.open(save, 'w:gz') as f:
                 f.add(calc, arcname=calc.basename())
 
