@@ -321,16 +321,18 @@ class SiteConfig():
             The list of arguments to be passed to subprocess.
         """
         exe, host, nproc, wd = ['mpiexec'], '-host', '-np', '-wdir'
+
+        # SPECIAL SERVER EXECUTABLE CASES ARE HANDLED HERE
         if self.cluster == 'edison':
             exe, host, nproc, wd = ['srun'], '-w', '-n', '-D'
         elif self.cluster == 'slac' and workdir is not None:
-            exe = ['pam', '-g',
-                   '/afs/slac/g/suncat/bin/suncat-tsmpirun',
+            exe = ['pam', '-g', '/afs/slac/g/suncat/bin/suncat-tsmpirun',
                    '-x', 'LD_LIBRARY_PATH']
 
         # This indicates per-processor MPI run
         if workdir is not None:
             command = exe + [wd, workdir]
+        # Otherwise, per-host MPI run
         else:
             command = exe + [nproc, str(self.nnodes),
                              host, ','.join(self.nodelist)]
