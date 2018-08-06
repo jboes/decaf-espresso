@@ -170,7 +170,7 @@ def fortran_to_value(fortran_value):
 class SiteConfig():
     """Site configuration holding details about the execution environment
     with methods for retrieving the details from systems variables and
-    creating directories
+    creating directories.
 
     Parameters:
     -----------
@@ -187,20 +187,11 @@ class SiteConfig():
         self.nodelist = None
         self.nprocs = None
 
-        # Set global scratch directory
-        scratch_paths = ['/scratch', '/tmp', '.']
-        for scratch in scratch_paths:
-            if os.path.exists(scratch):
-                self.global_scratch = Path(scratch)
-                break
-
         if self.scheduler is None:
-            self.batchmode = False
-            self.submitdir = Path(os.path.abspath(os.getcwd()))
+            self.submitdir = Path(os.getcwd())
             self.jobid = os.getpid()
             return
 
-        self.batchmode = True
         lsheduler = self.scheduler.lower()
         if lsheduler == 'slurm':
             self.set_slurm_env()
@@ -282,19 +273,25 @@ class SiteConfig():
         self.nprocs = len(procs)
 
     def make_scratch(self):
-        """Create a user scratch dir on each node (in the global scratch area)
-        in batchmode or a single local scratch directory otherwise.
+        """Create a user scratch dir on each calculation node if batch mode
+        or a single local scratch directory otherwise. Will attempt to call
+        from a user defined NODE_SCRATCH variable, then /tmp, then use the
+        submission directory.
 
-        This function will automatically cleanup after being called.
+        This function will automatically cleanup upon exiting Python.
         """
-        prefix = '_'.join(['qe', str(os.getuid()), str(self.jobid)])
+        scratch_paths = [os.getenv('NODE_SCRATCH'), '/tmp', self.submitdir]
+        for scratch in scratch_paths:
+            if os.path.exists(scratch):
+                node_scratch = Path(scratch)
+                break
+
         scratch = Path(tempfile.mkdtemp(
-            prefix=prefix,
-            suffix='_scratch',
-            dir=self.global_scratch)).abspath()
+            prefix='qe_{}'.format(self.jobid), suffix='_scratch',
+            dir=node_scratch)).abspath()
 
         with cd(self.submitdir):
-            if self.batchmode:
+            if self.scheduler:
                 cmd = self.get_exe_command('mkdir -p {}'.format(scratch))
                 subprocess.call(cmd)
             else:
@@ -374,8 +371,8 @@ class SiteConfig():
         with open(output, 'w') as f:
             f.write(title)
 
-        if self.batchmode:
-            # Assign npool for parallelization
+        if self.scheduler:
+            # Automatically assign npool for parallelization
             parflags = ''
             kpts = read_input_parameters()['kpts']
             if self.nprocs > 1 and kpts > self.nprocs:
