@@ -1,19 +1,30 @@
 import numpy as np
-from six import with_metaclass
 from path import Path
 import contextlib
 import itertools
-import os
 import tempfile
 import subprocess
-import re
 import hostlist
 import tarfile
 import atexit
 import shutil
+import re
+import os
 
 
 def read_input_parameters(infile='pw.pwi'):
+    """Return a dictionary of input arguments from an Espresso file.
+
+    Parameters:
+    -----------
+    infile : str
+        Input file to read arguments from.
+
+    Returns:
+    --------
+    data : dict
+        Arguments from an input file.
+    """
     data = {}
     with open(infile) as f:
         lines = f.read().split('\n')
@@ -33,7 +44,24 @@ def read_input_parameters(infile='pw.pwi'):
     return data
 
 
-def grepy(filename, search, instance=-1):
+def grepy(search, filename, instance=-1):
+    """Perform a python based grep-like operation on for a
+    regular expression on a given file.
+
+    Parameters:
+    -----------
+    search : str
+        Regular expression to be found.
+    filename : str
+        File to be searched within.
+    instances : slice
+        Index of the arguments to find. If None, return all found results.
+
+    Returns:
+    --------
+    results : list of str (N,) | None
+        All requested instances of a given argument.
+    """
     if not os.path.exists(filename):
         return None
 
@@ -46,7 +74,7 @@ def grepy(filename, search, instance=-1):
     if not results:
         return None
 
-    if instance:
+    if isinstance(instance, int):
         return results[instance]
     else:
         return results
@@ -73,87 +101,101 @@ def cd(path):
 
 
 def load_calculator(infile='calc.tar.gz', outdir='.'):
-    """Unpack the contents of calc.save directory."""
+    """Unpack the contents of calc.save directory which
+    was previously compressed.
+
+    Parameters:
+    -----------
+    infile : str
+        Relative input file for compressed save folder.
+    outdir : str
+        Relative output directory path for calc.save folder.
+    """
     with tarfile.open(infile, 'r:gz') as f:
         f.extractall(outdir)
 
 
 def value_to_fortran(value):
+    """Return a Python compatible version of a FORTRAN argument.
+
+    Parameters:
+    -----------
+    value : bool | int | float | str
+        A Python friendly representation of the input value.
+
+    Returns:
+    --------
+    fortran_value : str
+        A FORTRAN argument.
+    """
     if isinstance(value, bool):
-        value = '.{}.'.format(str(value).lower())
+        fortran_value = '.{}.'.format(str(value).lower())
     elif isinstance(value, float):
-        value = str(value)
+        fortran_value = str(value)
         if 'e' not in value:
-            value += 'd0'
+            fortran_value += 'd0'
 
-    return value
+    return fortran_value
 
 
-def fortran_to_value(value):
-    if value == '.true.':
+def fortran_to_value(fortran_value):
+    """Return a Python compatible version of a FORTRAN argument.
+
+    Parameters:
+    -----------
+    fortran_value : str
+        A FORTRAN argument.
+
+    Returns:
+    --------
+    value : bool | int | float | str
+        A Python friendly representation of the input value.
+    """
+    if fortran_value == '.true.':
         return True
-    elif value == '.false.':
+    elif fortran_value == '.false.':
         return False
 
     try:
-        value = int(value)
+        value = int(fortran_value)
     except(ValueError):
         try:
-            value = float(value)
+            value = float(fortran_value)
         except(ValueError):
-            return value.strip("'")
+            value = fortran_value.strip("'")
 
     return value
 
 
-class Singleton(type):
-
-    _instances = {}
-
-    def __call__(cls, *args, **kwargs):
-        if cls not in Singleton._instances:
-            Singleton._instances[cls] = type.__call__(cls, *args, **kwargs)
-        return Singleton._instances[cls]
-
-    def __erase(self):
-        """Reset the internal state, mainly for testing purposes"""
-
-        Singleton._instances = {}
-
-
-class SiteConfig(with_metaclass(Singleton, object)):
+class SiteConfig():
     """Site configuration holding details about the execution environment
     with methods for retrieving the details from systems variables and
     creating directories
 
-    Args:
-        scheduler (str) :
-            Name of the scheduler, curretly supports only `SLURM` and
-            `PBS`/`TORQUE`
-        scratchenv (str) :
-            Name of the envoronmental variable that defines the scratch path
+    Parameters:
+    -----------
+    scheduler : str
+        Name of the scheduler, curretly supports: SLURM, and
+        PBS/TORQUE, and LSF
     """
 
-    def __init__(self, scheduler=None, cluster=None, scratchenv='/tmp'):
+    def __init__(self, scheduler=None, cluster=None):
         self.scheduler = scheduler
         self.cluster = cluster
-        self.scratchenv = scratchenv
-        self.batchmode = False
-        self.global_scratch = None
-        self.submitdir = None
         self.scratch = None
-        self.jobid = None
         self.nnodes = None
         self.nodelist = None
         self.nprocs = None
 
-        self.set_variables()
+        # Set global scratch directory
+        scratch_paths = ['/scratch', '/tmp', '.']
+        for scratch in scratch_paths:
+            if os.path.exists(scratch):
+                self.global_scratch = Path(scratch)
 
-    def set_variables(self):
-        """Resolve the site attributes based on the scheduler used"""
         if self.scheduler is None:
+            self.batchmode = False
             self.submitdir = Path(os.path.abspath(os.getcwd()))
-            self.set_global_scratch(self.submitdir)
             self.jobid = os.getpid()
             return
 
@@ -165,18 +207,23 @@ class SiteConfig(with_metaclass(Singleton, object)):
             self.set_pbs_env()
         elif lsheduler == 'lbs':
             self.set_lbs_env()
-        self.set_global_scratch()
 
     @classmethod
     def check_scheduler(cls):
-        """Check for one of the supported schedulers."""
+        """Check for appropriate environment variables for the name
+        of the cluster being used. Returns None for both if no
+        supported schedule is found.
+
+        Returns:
+        --------
+        cls : classmethod
+            Runs SiteConfig with the found arguments.
+        """
         check_shedulers = {
             'SLURM': 'SLURM_CLUSTER_NAME',
             'PBS': 'PBS_SERVER',
-            'LBS': 'LSB_EXEC_CLUSTER'
-        }
+            'LBS': 'LSB_EXEC_CLUSTER'}
 
-        # Check for scheduler environment variables
         scheduler = None
         for sched, ev in check_shedulers.items():
             cluster = os.getenv(ev)
@@ -186,29 +233,13 @@ class SiteConfig(with_metaclass(Singleton, object)):
 
         return cls(scheduler, cluster)
 
-    def set_global_scratch(self, scratchdir=None):
-        """Set the global scratch attribute."""
-        if isinstance(scratchdir, str):
-            self.global_scratch = Path(scratchdir)
-
-        scratch = os.getenv(self.scratchenv)
-        if scratch is None:
-            scratch = self.submitdir
-        if not os.path.exists(scratch):
-            raise OSError(
-                '$SCRATCH variable {} points '
-                'to non-existent path'.format(self.scratchenv))
-
-        self.global_scratch = Path(scratch)
-
     def set_slurm_env(self):
         """Set the attributes necessary to run the job based on the
-        enviromental variables associated with SLURM scheduler
+        enviromental variables associated with SLURM scheduler.
         """
         self.jobid = os.getenv('SLURM_JOB_ID')
         self.submitdir = Path(os.getenv('SLURM_SUBMIT_DIR'))
 
-        self.nnodes = int(os.getenv('SLURM_JOB_NUM_NODES'))
         tpn = int(os.getenv('SLURM_TASKS_PER_NODE').split('(')[0])
         self.nodelist = hostlist.expand_hostlist(
             os.getenv('SLURM_JOB_NODELIST'))
@@ -217,11 +248,12 @@ class SiteConfig(with_metaclass(Singleton, object)):
             itertools.chain.from_iterable(itertools.repeat(x, tpn)
                                           for x in self.nodelist))
 
+        self.nnodes = int(os.getenv('SLURM_JOB_NUM_NODES'))
         self.nprocs = len(proclist)
 
     def set_lbs_env(self):
         """Set the attributes necessary to run the job based on the
-        enviromental variables associated with LBS scheduler
+        enviromental variables associated with LBS scheduler.
         """
         self.jobid = os.getenv('LSB_BATCH_JID')
         self.submitdir = Path(os.getenv('LS_SUBCWD'))
@@ -235,7 +267,7 @@ class SiteConfig(with_metaclass(Singleton, object)):
 
     def set_pbs_env(self):
         """Set the attributes necessary to run the job based on the
-        enviromental variables associated with PBS/TORQUE scheduler
+        enviromental variables associated with PBS/TORQUE scheduler.
         """
         self.jobid = os.getenv('PBS_JOBID')
         self.submitdir = Path(os.getenv('PBS_O_WORKDIR'))
@@ -249,8 +281,10 @@ class SiteConfig(with_metaclass(Singleton, object)):
         self.nprocs = len(procs)
 
     def make_scratch(self):
-        """Create a user scratch dir on each node (in the global scratch
-        area) in batchmode or a single local scratch directory otherwise
+        """Create a user scratch dir on each node (in the global scratch area)
+        in batchmode or a single local scratch directory otherwise.
+
+        This function will automatically cleanup after being called.
         """
         prefix = '_'.join(['qe', str(os.getuid()), str(self.jobid)])
         scratch = Path(tempfile.mkdtemp(
@@ -269,14 +303,27 @@ class SiteConfig(with_metaclass(Singleton, object)):
         atexit.register(self.clean)
 
     def get_exe_command(self, program, workdir=None):
-        """Return a command as list to execute `program` through
-        a supplied executable. If a workdir is provided, assume
+        """Return a command as list to execute subprocess through
+        a supplied argument. If a workdir is provided, assume
         execution per processor, otherwise, per host.
+
+        Parameters:
+        -----------
+        program : str
+            The full command line program to be executed using subprocess
+        workdir : str
+            A path to act as the working directory.
+
+        Returns:
+        --------
+        command : list or str (N,)
+            The list of arguments to be passed to subprocess.
         """
-        exe, host, nproc, wd = 'mpirun', '-host', '-np', '-wdir'
+        exe, host, nproc, wd = 'mpiexec', '-host', '-np', '-wdir'
         if self.cluster == 'edison':
             exe, host, nproc, wd = 'srun', '-w', '-n', '-D'
 
+        # This indicates per-processor MPI run
         if workdir is not None:
             command = [exe, wd, workdir]
         else:
@@ -287,7 +334,24 @@ class SiteConfig(with_metaclass(Singleton, object)):
         return command
 
     def run(self, exe='pw.x', infile='pw.pwi', outfile='pw.pwo'):
-        """Run an Espresso executable."""
+        """Run an Espresso executable with subprocess. The executable will
+        attempt to automatically assign an intelligent npool value
+        for efficient parallelization.
+
+        Parameters:
+        -----------
+        exe : str
+            The Espresso executable command to be run.
+        infile : str
+            Name of the input file to be used for the executable.
+        outfile : str
+            Name of the output file to be used for the executable.
+
+        Returns:
+        --------
+        state : int
+            The output state of the subprocess executed command.
+        """
         mypath = os.path.abspath(os.path.dirname(__file__))
         exedir = subprocess.check_output(['which', exe]).decode()
 
@@ -298,16 +362,18 @@ class SiteConfig(with_metaclass(Singleton, object)):
         inp = self.submitdir.joinpath(infile)
         inp.copy(self.scratch)
 
-        # This will remove the old output file.
+        # This will remove the old output file by default.
         output = self.submitdir.joinpath(outfile)
         with open(output, 'w') as f:
             f.write(title)
 
         if self.batchmode:
+            # Assign npool for parallelization
             parflags = ''
             kpts = read_input_parameters()['kpts']
             if self.nprocs > 1 and kpts > self.nprocs:
                 parflags += '-npool {}'.format(self.nprocs)
+
             command = self.get_exe_command(
                 '{} {} -in {}'.format(exe, parflags, infile), self.scratch)
         else:
@@ -328,7 +394,7 @@ class SiteConfig(with_metaclass(Singleton, object)):
         return state
 
     def clean(self):
-        """Remove the temporary files and directories."""
+        """Remove temporary files and directories."""
         os.chdir(self.submitdir)
 
         calc = self.scratch.joinpath('calc.save')
