@@ -192,6 +192,7 @@ class SiteConfig():
         for scratch in scratch_paths:
             if os.path.exists(scratch):
                 self.global_scratch = Path(scratch)
+                break
 
         if self.scheduler is None:
             self.batchmode = False
@@ -319,16 +320,20 @@ class SiteConfig():
         command : list or str (N,)
             The list of arguments to be passed to subprocess.
         """
-        exe, host, nproc, wd = 'mpiexec', '-host', '-np', '-wdir'
+        exe, host, nproc, wd = ['mpiexec'], '-host', '-np', '-wdir'
         if self.cluster == 'edison':
-            exe, host, nproc, wd = 'srun', '-w', '-n', '-D'
+            exe, host, nproc, wd = ['srun'], '-w', '-n', '-D'
+        elif self.cluster == 'slac' and workdir is not None:
+            exe = ['pam', '-g',
+                   '/afs/slac/g/suncat/bin/suncat-tsmpirun',
+                   '-x', 'LD_LIBRARY_PATH']
 
         # This indicates per-processor MPI run
         if workdir is not None:
-            command = [exe, wd, workdir]
+            command = exe + [wd, workdir]
         else:
-            command = [exe, nproc, str(self.nnodes),
-                       host, ','.join(self.nodelist)]
+            command = exe + [nproc, str(self.nnodes),
+                             host, ','.join(self.nodelist)]
         command += program.split()
 
         return command
