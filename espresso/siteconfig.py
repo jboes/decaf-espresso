@@ -280,7 +280,7 @@ class SiteConfig():
 
         This function will automatically cleanup upon exiting Python.
         """
-        scratch_paths = [os.getenv('NODE_SCRATCH'), '/tmp', self.submitdir]
+        scratch_paths = [os.getenv('L_SCRATCH_JOB'), '/tmp', self.submitdir]
         for scratch in scratch_paths:
             if os.path.exists(scratch):
                 node_scratch = Path(scratch)
