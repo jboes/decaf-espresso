@@ -128,4 +128,32 @@ Where =parameter_name= is the exact name of the Quantum espresso parameter, and 
 In decaf-espresso, validation functions also server the double role of updating certain values. For Example, Quantum Espresso takes units of energy in Rydbergs, but eV are more commonly used in surface science. So, any validation function which takes Rydbergs will also return and =updated_val= which is the value converted to Rydbergs from eV so the user can specify inputs in eV. This sacrifices some readability, but avoids looping over extra lists of known value types, helping keep the code DRY.
 
 * Example scripts
-Coming Soon.
+Usage of the calculator are shown below for varying structure types.
+
+Additional exampled coming soon.
+
+** Molecule relaxation
+The example below will relax an H_{2} molecule using some standard flags. Below is the rational for some of the flags used.
+
+- 'ecutwfc': A required argument, represents the energy cutoff for the wave functions.
+
+- 'conv_thr': The threshold for considering a total energy converged. DFT is only accurate to about 0.1 eV at best, so 1e-4 should be sufficient for most use cases.
+
+- 'degauss': Gaussian smearing coefficient. This is a non-physical contribution meant only to help atomic structures with d-bands converge correctly. For molecules we set it to be small.
+
+#+BEGIN_SRC python :results output org drawer
+from espresso import Espresso
+from ase.build import molecule
+
+parameters = {
+    'calculation': 'relax',
+    'input_dft': 'PBE',
+    'ecutwfc': 500,
+    'conv_thr': 1e-4,
+    'degauss': 0.01}
+
+atoms = molecule('H2', vacuum=6)
+
+calc = Espresso(atoms, **parameters)
+atoms.get_potential_energy()
+#+END_SRC
