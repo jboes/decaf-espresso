@@ -285,7 +285,8 @@ class SiteConfig():
         save_calc : bool
             Whether to save the calculation folder or not.
         """
-        scratch_paths = [os.getenv('L_SCRATCH_JOB'), '/tmp', self.submitdir]
+        scratch_paths = [
+            os.getenv('L_SCRATCH_JOB', '/scratch'), '/tmp', self.submitdir]
         for scratch in scratch_paths:
             if os.path.exists(scratch):
                 node_scratch = Path(scratch)
@@ -364,17 +365,9 @@ class SiteConfig():
         mypath = os.path.abspath(os.path.dirname(__file__))
         exedir = subprocess.check_output(['which', exe]).decode()
 
-        title = '{:<14}: {}\n{:<14}: {}'.format(
-            'python dir', mypath, 'espresso dir', exedir)
-
         # Copy the input file to the scratch directory.
         inp = self.submitdir.joinpath(infile)
         inp.copy(self.scratch)
-
-        # This will remove the old output file by default.
-        output = self.submitdir.joinpath(outfile)
-        with open(output, 'w') as f:
-            f.write(title)
 
         if self.scheduler:
             # Automatically assign npool for parallelization
@@ -388,6 +381,16 @@ class SiteConfig():
         else:
             command = [exe, '-in', infile]
 
+        title = '{:<14}: {}\n{:<14}: {}{:<14}: {}\n'.format(
+            'python dir', mypath,
+            'espresso dir', exedir,
+            'executable', ' '.join(command))
+
+        # This will remove the old output file by default.
+        output = self.submitdir.joinpath(outfile)
+        with open(output, 'w') as f:
+            f.write(title)
+
         with cd(self.scratch):
             with open(output, 'ab') as f:
                 state = subprocess.call(command, stdout=f)
@@ -396,9 +399,20 @@ class SiteConfig():
             if grepy('JOB DONE.', outfile):
                 pass
             else:
-                raise RuntimeError(
-                    'Execution returned a non-zero state: '
-                    '{}'.format(' '.join(command)))
+                # Read the error message
+                error_message = []
+                with open(outfile, 'r') as f:
+                    for line in f:
+                        # Capture the message between %%%
+                        if '%%%%%%%%%%%%%%' in line:
+                            error_message += [line]
+                            if len(error_message) > 1:
+                                break
+                        elif error_message:
+                            error_message += [line]
+
+                raise RuntimeError('pw.x returned a nonzero exit state:\n'
+                                   '{}'.format(''.join(error_message)))
 
         return state
 
