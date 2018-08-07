@@ -331,6 +331,11 @@ class SiteConfig():
         elif self.cluster == 'slac' and workdir is not None:
             exe = ['pam', '-g', '/afs/slac/g/suncat/bin/suncat-tsmpirun',
                    '-x', 'LD_LIBRARY_PATH']
+        elif self.cluster == 'slac' and workdir:
+            exe = ['mpiexec', '--mca', 'orte_rsh_agent',
+                   '/afs/slac.stanford.edu/package/lsf/bin.slac/gmmpirun_lsgrun.sh']
+            init = exe + ['ls', self.submitdir]
+            subprocess.call(init)
 
         # This indicates per-processor MPI run
         if workdir is not None:

@@ -135,11 +135,11 @@ Additional exampled coming soon.
 ** Molecule relaxation
 The example below will relax an H_{2} molecule using some standard flags. Below is the rational for some of the flags used.
 
-- 'ecutwfc': A required argument, represents the energy cutoff for the wave functions.
+- =ecutwfc=: A required argument, represents the energy cutoff for the wave functions.
 
-- 'conv_thr': The threshold for considering a total energy converged. DFT is only accurate to about 0.1 eV at best, so 1e-4 should be sufficient for most use cases.
+- =conv_thr=: The threshold for considering a total energy converged. DFT is only accurate to about 0.1 eV at best, so 1e-4 should be sufficient for most use cases.
 
-- 'degauss': Gaussian smearing coefficient. This is a non-physical contribution meant only to help atomic structures with d-bands converge correctly. For molecules we set it to be small.
+- =degauss=: Gaussian smearing coefficient. This is a non-physical contribution meant only to help atomic structures with d-bands converge correctly. For molecules we set it to be small.
 
 #+BEGIN_SRC python :results output org drawer
 from espresso import Espresso
