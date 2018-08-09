@@ -45,7 +45,7 @@ def read_input_parameters(infile='pw.pwi'):
 
 
 def grepy(search, filename, instance=-1):
-    """Perform a python based grep-like operation on for a
+    """Perform a python based grep-like operation for a
     regular expression on a given file.
 
     Parameters:
@@ -402,6 +402,8 @@ class SiteConfig():
 
         if state != 0:
             if grepy('JOB DONE.', outfile):
+                pass
+            elif grepy('is really the minimum energy structure', outfile):
                 pass
             else:
                 # Read the error message
