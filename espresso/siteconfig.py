@@ -186,6 +186,7 @@ class SiteConfig():
         self.nnodes = None
         self.nodelist = None
         self.nprocs = None
+        self.proclist = None
 
         if self.scheduler is None:
             self.submitdir = Path(os.getcwd())
@@ -233,15 +234,13 @@ class SiteConfig():
         self.submitdir = Path(os.getenv('SLURM_SUBMIT_DIR'))
 
         tpn = int(os.getenv('SLURM_TASKS_PER_NODE').split('(')[0])
-        self.nodelist = hostlist.expand_hostlist(
-            os.getenv('SLURM_JOB_NODELIST'))
 
-        proclist = list(
-            itertools.chain.from_iterable(itertools.repeat(x, tpn)
-                                          for x in self.nodelist))
+        cmd = ['scontrol', 'show', 'hostnames', os.getenv('SLURM_JOB_NODELIST')]
+        self.nodelist = subprocess.check_output(cmd).decode().split('\n')[:-1]
+        self.proclist = sorted(self.nodelist * tpn)
 
         self.nnodes = int(os.getenv('SLURM_JOB_NUM_NODES'))
-        self.nprocs = len(proclist)
+        self.nprocs = len(self.proclist)
 
     def set_lbs_env(self):
         """Set the attributes necessary to run the job based on the
@@ -285,8 +284,7 @@ class SiteConfig():
         save_calc : bool
             Whether to save the calculation folder or not.
         """
-        scratch_paths = [
-            os.getenv('L_SCRATCH_JOB', '/scratch'), '/tmp', self.submitdir]
+        scratch_paths = [os.getenv('SCRATCH', '/tmp'), self.submitdir]
         for scratch in scratch_paths:
             if os.path.exists(scratch):
                 node_scratch = Path(scratch)
