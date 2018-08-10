@@ -1,10 +1,8 @@
-import numpy as np
 from path import Path
+import numpy as np
 import contextlib
-import itertools
 import tempfile
 import subprocess
-import hostlist
 import tarfile
 import atexit
 import shutil
@@ -186,7 +184,6 @@ class SiteConfig():
         self.nnodes = None
         self.nodelist = None
         self.nprocs = None
-        self.proclist = None
 
         if self.scheduler is None:
             self.submitdir = Path(os.getcwd())
@@ -235,12 +232,13 @@ class SiteConfig():
 
         tpn = int(os.getenv('SLURM_TASKS_PER_NODE').split('(')[0])
 
-        cmd = ['scontrol', 'show', 'hostnames', os.getenv('SLURM_JOB_NODELIST')]
+        cmd = ['scontrol', 'show', 'hostnames',
+               os.getenv('SLURM_JOB_NODELIST')]
         self.nodelist = subprocess.check_output(cmd).decode().split('\n')[:-1]
-        self.proclist = sorted(self.nodelist * tpn)
+        proclist = sorted(self.nodelist * tpn)
 
         self.nnodes = int(os.getenv('SLURM_JOB_NUM_NODES'))
-        self.nprocs = len(self.proclist)
+        self.nprocs = len(proclist)
 
     def set_lbs_env(self):
         """Set the attributes necessary to run the job based on the
