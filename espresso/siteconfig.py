@@ -1,5 +1,5 @@
+from . import io
 from path import Path
-import numpy as np
 import contextlib
 import tempfile
 import subprocess
@@ -8,38 +8,6 @@ import atexit
 import shutil
 import re
 import os
-
-
-def read_input_parameters(infile='pw.pwi'):
-    """Return a dictionary of input arguments from an Espresso file.
-
-    Parameters:
-    -----------
-    infile : str
-        Input file to read arguments from.
-
-    Returns:
-    --------
-    data : dict
-        Arguments from an input file.
-    """
-    data = {}
-    with open(infile) as f:
-        lines = f.read().split('\n')
-
-        for i, line in enumerate(lines):
-            if '=' in line:
-                key, value = [_.strip() for _ in line.split('=')]
-                value = fortran_to_value(value)
-                data[key] = value
-
-            elif 'K_POINTS automatic' in line:
-                kpts = np.array(lines[i + 1].split(), dtype=int)
-                data['kpts'] = tuple(kpts[:3])
-            elif 'K_POINTS gamma' in line:
-                data['kpts'] = 1
-
-    return data
 
 
 def grepy(search, filename, instance=-1):
@@ -130,7 +98,7 @@ def value_to_fortran(value):
         fortran_value = '.{}.'.format(str(value).lower())
     elif isinstance(value, float):
         fortran_value = str(value)
-        if 'e' not in value:
+        if 'e' not in fortran_value:
             fortran_value += 'd0'
 
     return fortran_value
@@ -373,7 +341,7 @@ class SiteConfig():
         if self.scheduler:
             # Automatically assign npool for parallelization
             parflags = ''
-            kpts = read_input_parameters()['kpts']
+            kpts = io.read_input_parameters()['kpts']
             if self.nprocs > 1 and kpts > self.nprocs:
                 parflags += '-npool {}'.format(self.nprocs)
 
@@ -396,10 +364,12 @@ class SiteConfig():
             with open(output, 'ab') as f:
                 state = subprocess.call(command, stdout=f)
 
+        # ERROR HANDLING
         if state != 0:
             if grepy('JOB DONE.', outfile):
                 pass
             elif grepy('is really the minimum energy structure', outfile):
+                # A spin polarized calculation which converged to 0 spin.
                 pass
             else:
                 # Read the error message
@@ -416,6 +386,8 @@ class SiteConfig():
 
                 raise RuntimeError('pw.x returned a nonzero exit state:\n'
                                    '{}'.format(''.join(error_message)))
+        elif grepy('convergence NOT achieved after', outfile):
+            raise RuntimeError('Electronic convergence was not achieved.')
 
         return state
 
@@ -428,6 +400,6 @@ class SiteConfig():
 
         if os.path.exists(calc) and save_calc:
             with tarfile.open(save, 'w:gz') as f:
-                f.add(calc, arcname=calc.basename())
+                f.add(calc.dirname(), arcname='.')
 
         shutil.rmtree(self.scratch)

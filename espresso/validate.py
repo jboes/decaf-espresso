@@ -127,7 +127,7 @@ def nbnd(calc, val):
     """If nbands is negative, assign additional bands."""
     assert isinstance(val, int)
 
-    if val < 0:
+    if val < 0 and calc.atoms:
         nvalence, nel = calc.get_nvalence()
 
         if calc.get_param('noncolin'):
@@ -454,9 +454,9 @@ variables = {
 projwfc_vars = {
     # PROJWFC
     'ngauss': None,
-    'Emin': None,
-    'Emax': None,
-    'DeltaE': None,
+    'Emin': -20,
+    'Emax': 20,
+    'DeltaE': 0.01,
     'lsym': None,
     'pawpraj': None,
     'filpdos': None,
