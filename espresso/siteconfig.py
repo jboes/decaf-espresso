@@ -282,7 +282,7 @@ class SiteConfig():
         save_calc : bool
             Whether to save the calculation folder or not.
         """
-        scratch_paths = [os.getenv('SCRATCH', '/tmp'), self.submitdir]
+        scratch_paths = [os.getenv('ESPRESSO_SCRATCH', '/tmp'), self.submitdir]
         for scratch in scratch_paths:
             if os.path.exists(scratch):
                 node_scratch = Path(scratch)
