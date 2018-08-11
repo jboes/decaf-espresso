@@ -32,8 +32,9 @@ def read(infile, *args):
             images[i]._calc.results['magmom'] = np.round(float(mag), 2)
     else:
         mag = siteconfig.grepy('total magnetization', infile)
-        mag = mag.split('=')[-1].split('Bohr')[0]
-        images._calc.results['magmom'] = np.round(float(mag), 2)
+        if mag:
+            mag = mag.split('=')[-1].split('Bohr')[0]
+            images._calc.results['magmom'] = np.round(float(mag), 2)
 
     return images
 
