@@ -370,7 +370,7 @@ class PDOS(Espresso):
         energies = pdos[0][fs]
 
         spins = np.zeros((2, len(pdos[2])))
-        for i, spin in enumerate(spins):
+        for i in range(spins.shape[1]):
             for band in pdos[2][i]:
                 spins[0][i] += np.trapz(pdos[2][i][band][0][fs], x=energies)
                 spins[1][i] += np.trapz(pdos[2][i][band][1][fs], x=energies)
