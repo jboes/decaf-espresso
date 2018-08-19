@@ -242,6 +242,38 @@ def nosym(calc, val):
     assert isinstance(val, bool)
 
 
+def lda_plus_u(calc, val):
+    """ """
+    assert isinstance(val, bool)
+
+
+def Hubbard_U(calc, val):
+    """Take a dictionary of U values associate with each species in
+    the SYSTEMS table and assign its value.
+
+    Currently, only element universal U values are supported because of the
+    limitations of the ASE write function.
+
+    https://www.quantum-espresso.org/Doc/INPUT_PW.html#idm45922794450800
+    """
+    assert isinstance(val, dict)
+
+    nspecies = {}
+    magmom = calc.atoms.get_initial_magnetic_moments()
+    for i, s in enumerate(calc.species):
+        smagmom = magmom[np.in1d(calc.symbols, s)]
+        nspecies[s] = len(np.unique(smagmom))
+
+    i = 1
+    for specie, n in nspecies.items():
+        for j in range(n):
+            calc.params['Hubbard_U({})'.format(i)] = val.get(specie, 0)
+            i += 1
+
+    del calc.params['Hubbard_U']
+    calc.params['lda_plus_u'] = True
+
+
 # PROJWFC variables
 def Emin(calc, val):
     """"""
@@ -270,7 +302,7 @@ def nguass(calc, val):
     """"""
     assert isinstance(val, int)
 
-
+# PARAMETERS
 variables = {
     # CONTROL
     'calculation': 'scf',
