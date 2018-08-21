@@ -24,14 +24,14 @@ def read(infile, *args):
 
         magmom = []
         for i, line in enumerate(lines):
-            if 'total magnetization' in line \
+            if 'absolute magnetization' in line \
                and 'convergence has been achieved' in lines[i + 3]:
                 magmom += [line.split('=')[-1].split('Bohr')[0]]
 
         for i, mag in enumerate(magmom):
             images[i]._calc.results['magmom'] = np.round(float(mag), 2)
     else:
-        mag = siteconfig.grepy('total magnetization', infile)
+        mag = siteconfig.grepy('absolute magnetization', infile)
         if mag:
             mag = mag.split('=')[-1].split('Bohr')[0]
             images._calc.results['magmom'] = np.round(float(mag), 2)

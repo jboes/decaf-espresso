@@ -10,6 +10,14 @@ import re
 import os
 
 
+class ConvergenceFailure(Exception):
+    def __init__(self, message=''):
+        self.message = message
+
+    def __str__(self):
+        return self.message
+
+
 def grepy(search, filename, instance=-1):
     """Perform a python based grep-like operation for a
     regular expression on a given file.
@@ -372,6 +380,7 @@ class SiteConfig():
                 pass
             elif grepy('is really the minimum energy structure', outfile):
                 # A spin polarized calculation which converged to 0 spin.
+                # WARNING: This will result in a corrected calculation folder.
                 pass
             else:
                 # Read the error message
@@ -389,7 +398,8 @@ class SiteConfig():
                 raise RuntimeError('pw.x returned a nonzero exit state:\n'
                                    '{}'.format(''.join(error_message)))
         elif grepy('convergence NOT achieved after', outfile):
-            raise RuntimeError('Electronic convergence was not achieved.')
+            raise ConvergenceFailure(
+                'Electronic convergence was not achieved.')
 
         return state
 

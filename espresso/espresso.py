@@ -46,7 +46,7 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
         if self.site is None:
             self.site = siteconfig.SiteConfig.check_scheduler()
 
-        if atoms:
+        if atoms is not None:
             atoms.set_calculator(self)
             self.symbols = self.atoms.get_chemical_symbols()
             self.species = np.unique(self.symbols)
