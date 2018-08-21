@@ -1,6 +1,7 @@
-from . import siteconfig
 import numpy as np
 import ase.io as aseio
+import re
+import os
 
 
 def read(infile, *args):
@@ -31,7 +32,7 @@ def read(infile, *args):
         for i, mag in enumerate(magmom):
             images[i]._calc.results['magmom'] = np.round(float(mag), 2)
     else:
-        mag = siteconfig.grepy('absolute magnetization', infile)
+        mag = grepy('absolute magnetization', infile)
         if mag:
             mag = mag.split('=')[-1].split('Bohr')[0]
             images._calc.results['magmom'] = np.round(float(mag), 2)
@@ -59,7 +60,7 @@ def read_input_parameters(infile='pw.pwi'):
         for i, line in enumerate(lines):
             if '=' in line:
                 key, value = [_.strip() for _ in line.split('=')]
-                value = siteconfig.fortran_to_value(value)
+                value = fortran_to_value(value)
                 data[key] = value
 
             elif 'K_POINTS automatic' in line:
@@ -86,6 +87,94 @@ def write_projwfc_input(parameters, infile='projwfc.pwi'):
             'prefix', 'outdir'))
 
         for key, value in parameters.items():
-            value = siteconfig.value_to_fortran(value)
+            value = value_to_fortran(value)
             f.write('   {:16} = {}\n'.format(key, value))
         f.write('/\n')
+
+
+def grepy(search, filename, instance=-1):
+    """Perform a python based grep-like operation for a
+    regular expression on a given file.
+
+    Parameters:
+    -----------
+    search : str
+        Regular expression to be found.
+    filename : str
+        File to be searched within.
+    instances : slice
+        Index of the arguments to find. If None, return all found results.
+
+    Returns:
+    --------
+    results : list of str (N,) | None
+        All requested instances of a given argument.
+    """
+    if not os.path.exists(filename):
+        return None
+
+    results = []
+    with open(filename, 'r') as f:
+        for line in f:
+            if re.search(search, line, re.IGNORECASE):
+                results += [line]
+
+    if not results:
+        return None
+
+    if isinstance(instance, int):
+        return results[instance]
+    else:
+        return results
+
+
+def value_to_fortran(value):
+    """Return a Python compatible version of a FORTRAN argument.
+
+    Parameters:
+    -----------
+    value : bool | int | float | str
+        A Python friendly representation of the input value.
+
+    Returns:
+    --------
+    fortran_value : str
+        A FORTRAN argument.
+    """
+    if isinstance(value, bool):
+        fortran_value = '.{}.'.format(str(value).lower())
+    elif isinstance(value, float):
+        fortran_value = str(value)
+        if 'e' not in fortran_value:
+            fortran_value += 'd0'
+
+    return fortran_value
+
+
+def fortran_to_value(fortran_value):
+    """Return a Python compatible version of a FORTRAN argument.
+
+    Parameters:
+    -----------
+    fortran_value : str
+        A FORTRAN argument.
+
+    Returns:
+    --------
+    value : bool | int | float | str
+        A Python friendly representation of the input value.
+    """
+    if fortran_value == '.true.':
+        return True
+    elif fortran_value == '.false.':
+        return False
+
+    try:
+        value = int(fortran_value)
+    except(ValueError):
+        try:
+            value = float(fortran_value)
+        except(ValueError):
+            value = fortran_value.strip("'")
+
+    return value

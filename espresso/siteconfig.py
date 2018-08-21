@@ -6,7 +6,6 @@ import subprocess
 import tarfile
 import atexit
 import shutil
-import re
 import os
 
 
@@ -16,42 +15,6 @@ class ConvergenceFailure(Exception):
 
     def __str__(self):
         return self.message
-
-
-def grepy(search, filename, instance=-1):
-    """Perform a python based grep-like operation for a
-    regular expression on a given file.
-
-    Parameters:
-    -----------
-    search : str
-        Regular expression to be found.
-    filename : str
-        File to be searched within.
-    instances : slice
-        Index of the arguments to find. If None, return all found results.
-
-    Returns:
-    --------
-    results : list of str (N,) | None
-        All requested instances of a given argument.
-    """
-    if not os.path.exists(filename):
-        return None
-
-    results = []
-    with open(filename, 'r') as f:
-        for line in f:
-            if re.search(search, line, re.IGNORECASE):
-                results += [line]
-
-    if not results:
-        return None
-
-    if isinstance(instance, int):
-        return results[instance]
-    else:
-        return results
 
 
 @contextlib.contextmanager
@@ -87,58 +50,6 @@ def load_calculator(infile='calc.tar.gz', outdir='.'):
     """
     with tarfile.open(infile, 'r:gz') as f:
         f.extractall(outdir)
-
-
-def value_to_fortran(value):
-    """Return a Python compatible version of a FORTRAN argument.
-
-    Parameters:
-    -----------
-    value : bool | int | float | str
-        A Python friendly representation of the input value.
-
-    Returns:
-    --------
-    fortran_value : str
-        A FORTRAN argument.
-    """
-    if isinstance(value, bool):
-        fortran_value = '.{}.'.format(str(value).lower())
-    elif isinstance(value, float):
-        fortran_value = str(value)
-        if 'e' not in fortran_value:
-            fortran_value += 'd0'
-
-    return fortran_value
-
-
-def fortran_to_value(fortran_value):
-    """Return a Python compatible version of a FORTRAN argument.
-
-    Parameters:
-    -----------
-    fortran_value : str
-        A FORTRAN argument.
-
-    Returns:
-    --------
-    value : bool | int | float | str
-        A Python friendly representation of the input value.
-    """
-    if fortran_value == '.true.':
-        return True
-    elif fortran_value == '.false.':
-        return False
-
-    try:
-        value = int(fortran_value)
-    except(ValueError):
-        try:
-            value = float(fortran_value)
-        except(ValueError):
-            value = fortran_value.strip("'")
-
-    return value
 
 
 class SiteConfig():
@@ -376,9 +287,9 @@ class SiteConfig():
 
         # ERROR HANDLING
         if state != 0:
-            if grepy('JOB DONE.', outfile):
+            if io.grepy('JOB DONE.', outfile):
                 pass
-            elif grepy('is really the minimum energy structure', outfile):
+            elif io.grepy('is really the minimum energy structure', outfile):
                 # A spin polarized calculation which converged to 0 spin.
                 # WARNING: This will result in a corrected calculation folder.
                 pass
@@ -397,7 +308,7 @@ class SiteConfig():
 
                 raise RuntimeError('pw.x returned a nonzero exit state:\n'
                                    '{}'.format(''.join(error_message)))
-        elif grepy('convergence NOT achieved after', outfile):
+        elif io.grepy('convergence NOT achieved after', outfile):
             raise ConvergenceFailure(
                 'Electronic convergence was not achieved.')
 
