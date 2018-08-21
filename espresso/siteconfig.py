@@ -203,10 +203,10 @@ class SiteConfig():
         cmd = ['scontrol', 'show', 'hostnames',
                os.getenv('SLURM_JOB_NODELIST')]
         self.nodelist = subprocess.check_output(cmd).decode().split('\n')[:-1]
-        proclist = sorted(self.nodelist * tpn)
+        self.proclist = sorted(self.nodelist * tpn)
 
         self.nnodes = int(os.getenv('SLURM_JOB_NUM_NODES'))
-        self.nprocs = len(proclist)
+        self.nprocs = len(self.proclist)
 
     def set_lbs_env(self):
         """Set the attributes necessary to run the job based on the
@@ -300,6 +300,8 @@ class SiteConfig():
                    '/afs/slac.stanford.edu/package/lsf/bin.slac/gmmpirun_lsgrun.sh']
             init = exe + ['ls', self.submitdir]
             subprocess.call(init)
+        elif self.cluster == 'sherlock':
+            exe = ['mpiexec', nproc, str(self.nnodes), host, ','.join(self.proclist)]
 
         # This indicates per-processor MPI run
         if workdir:
