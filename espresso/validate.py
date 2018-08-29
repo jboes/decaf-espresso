@@ -1,36 +1,102 @@
-from ase.units import Rydberg, Bohr
+from . import utils
+from ase.io.espresso import KEYS
+from ase.units import create_units
 import numpy as np
 import os
 import warnings
 import six
+KEYS['system'] += ['ensemble_energies', 'print_ensemble_energies']
+Rydberg = create_units('2006')['Rydberg']
+Bohr = create_units('2006')['Bohr']
+
+variables = {
+    # CONTROL
+    'outdir': '.',
+    'prefix': 'calc',
+    'etot_conv_thr': 0.0,
+    'forc_conv_thr': 0.05 / (Rydberg / Bohr),
+    'pseudo_dir': os.environ['ESP_PSP_PATH'],
+    'occupations': 'smearing',
+    'smearing': 'fd',
+    'ibrav': 0,
+    'degauss': 0.1 / Rydberg}
+
+projwfc_vars = {
+    'Emin': -20,
+    'Emax': 20,
+    'DeltaE': 0.01}
 
 
-def dipfield(calc, val):
-    """"""
-    assert isinstance(val, bool)
-    if not calc.get_param('tefield'):
-        calc.params['tefield'] = True
+def edir(calc, val):
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#edir
+    """
+    assert isinstance(val, int)
+    assert val in [1, 2, 3]
+
+
+def emaxpos(calc, val):
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#emaxpos
+    """
+    assert isinstance(val, float)
+    assert (val >= 0) and (val <= 1)
+
+
+def eopreg(calc, val):
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#eopreg
+    """
+    assert isinstance(val, float)
+    assert (val >= 0) and (val <= 1)
+
+
+def eamp(calc, val):
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#eamp
+    """
+    assert isinstance(val, float)
 
 
 def tefield(calc, val):
-    """"""
+    """By default, the amplitude is set to zero, but if it is manually
+    specified with an emaxpos, attempt to automatically assign emaxpos.
+
+    https://www.quantum-espresso.org/Doc/INPUT_PW.html#tefield
+    """
     assert isinstance(val, bool)
+    if not calc.get_param('edir'):
+        calc.params['edir'] = 3
+
+    if not calc.get_param('eamp'):
+        calc.params['eamp'] = 0.0
+
+    if not calc.get_param('emaxpos'):
+        calc.params['emaxpos'] = utils.get_max_empty_space(calc.atoms)
+
+
+def dipfield(calc, val):
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#dipfield
+    """
+    assert isinstance(val, bool)
+    if not calc.get_param('tefield'):
+        calc.params['tefield'] = True
+        tefield(calc, val)
 
 
 def tstress(calc, val):
-    """"""
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#tstress
+    """
     assert isinstance(val, bool)
     if not calc.get_param('tprnfor'):
         calc.params['tprnfor'] = True
 
 
 def tprnfor(calc, val):
-    """"""
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#tprnfor
+    """
     assert isinstance(val, bool)
 
 
 def occupations(calc, val):
-    """"""
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#occupations
+    """
     assert isinstance(val, six.string_types)
     values = ['smearing', 'tetrahedra', 'tetrahedra_lin',
               'tetrahedra_opt', 'fixed', 'from_input']
@@ -39,7 +105,8 @@ def occupations(calc, val):
 
 
 def degauss(calc, val):
-    """"""
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#degauss
+    """
     assert isinstance(val, (float, int))
     val /= Rydberg
 
@@ -56,13 +123,15 @@ def degauss(calc, val):
 
 
 def lspinorb(calc, val):
-    """"""
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#lspinorb
+    """
     assert isinstance(val, bool)
     assert calc.get_param('noncolin')
 
 
 def nspin(calc, val):
-    """"""
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#nspin
+    """
     assert val in [2, 4]
     assert calc.get_param('occupations')
     assert calc.get_param('smearing')
@@ -75,20 +144,23 @@ def nspin(calc, val):
 
 
 def noncolin(calc, val):
-    """"""
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#noncolin
+    """
     assert isinstance(val, bool)
     calc.params['nspin'] = 4
     nspin(calc, 4)
 
 
 def tot_magnetization(calc, val):
-    """"""
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#tot_magnetization
+    """
     assert isinstance(val, int)
     nspin(calc, calc.get_param('nspin'))
 
 
 def ion_dynamics(calc, val):
-    """"""
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#ion_dynamics
+    """
     assert isinstance(val, six.string_types)
 
     calculator = calc.get_param('calculation')
@@ -124,7 +196,10 @@ def ion_dynamics(calc, val):
 
 
 def nbnd(calc, val):
-    """If nbands is negative, assign additional bands."""
+    """If nbnd is negative, assign additional bands of that quantity.
+
+    https://www.quantum-espresso.org/Doc/INPUT_PW.html#nbnd
+    """
     assert isinstance(val, int)
 
     if val < 0 and calc.atoms:
@@ -139,7 +214,8 @@ def nbnd(calc, val):
 
 
 def etot_conv_thr(calc, val):
-    """"""
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#etot_conv_thr
+    """
     assert isinstance(val, (float, int))
     val /= Rydberg
 
@@ -147,7 +223,8 @@ def etot_conv_thr(calc, val):
 
 
 def forc_conv_thr(calc, val):
-    """"""
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#forc_conv_thr
+    """
     assert isinstance(val, (float, int))
     val /= Rydberg / Bohr
 
@@ -155,7 +232,8 @@ def forc_conv_thr(calc, val):
 
 
 def ecutwfc(calc, val):
-    """"""
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#ecutwfc
+    """
     assert isinstance(val, (float, int))
     val /= Rydberg
 
@@ -163,7 +241,8 @@ def ecutwfc(calc, val):
 
 
 def ecutrho(calc, val):
-    """"""
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#ecutrho
+    """
     assert isinstance(val, (float, int))
     val /= Rydberg
 
@@ -171,7 +250,8 @@ def ecutrho(calc, val):
 
 
 def conv_thr(calc, val):
-    """"""
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#conv_thr
+    """
     assert isinstance(val, (float, int))
     val /= Rydberg
 
@@ -179,7 +259,8 @@ def conv_thr(calc, val):
 
 
 def ecutfock(calc, val):
-    """"""
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#ecutfock
+    """
     assert isinstance(val, (float, int))
     val /= Rydberg
 
@@ -187,7 +268,8 @@ def ecutfock(calc, val):
 
 
 def calculation(calc, val):
-    """"""
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#calculation
+    """
     assert isinstance(val, six.string_types)
 
     values = ['scf', 'nscf', 'bands', 'relax', 'md', 'vc-relax', 'vc-md']
@@ -195,18 +277,21 @@ def calculation(calc, val):
 
 
 def prefix(calc, val):
-    """"""
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#prefix
+    """
     assert isinstance(val, six.string_types)
     warnings.warn("For directory consistency, 'prefix' is ignored")
 
 
 def outdir(calc, val):
-    """"""
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#outdir
+    """
     assert isinstance(val, six.string_types)
 
 
 def disk_io(calc, val):
-    """"""
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#disk_io
+    """
     assert isinstance(val, six.string_types)
 
     if isinstance(val, str):
@@ -218,7 +303,7 @@ def kpts(calc, val):
     """Test k-points to be 'gamma' or list_like of 3 values.
     Only automatic assignment is currently supported.
 
-    https://www.quantum-espresso.org/Doc/INPUT_PW.html#idm45922794051696
+    https://www.quantum-espresso.org/Doc/INPUT_PW.html#k_points
     """
     if val == 'gamma':
         return
@@ -227,23 +312,27 @@ def kpts(calc, val):
 
 
 def input_dft(calc, val):
-    """"""
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#input_dft
+    """
     assert isinstance(val, six.string_types)
 
 
 def mixing_beta(calc, val):
-    """"""
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#mixing_beta
+    """
     assert isinstance(val, float)
     assert (val > 0) and (val < 1)
 
 
 def nosym(calc, val):
-    """"""
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#nosym
+    """
     assert isinstance(val, bool)
 
 
 def lda_plus_u(calc, val):
-    """ """
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#lda_plus_u
+    """
     assert isinstance(val, bool)
 
 
@@ -254,7 +343,7 @@ def Hubbard_U(calc, val):
     Currently, only element universal U values are supported because of the
     limitations of the ASE write function.
 
-    https://www.quantum-espresso.org/Doc/INPUT_PW.html#idm45922794450800
+    https://www.quantum-espresso.org/Doc/INPUT_PW.html#Hubbard_U
     """
     assert isinstance(val, dict)
 
@@ -276,7 +365,8 @@ def Hubbard_U(calc, val):
 
 # PROJWFC variables
 def Emin(calc, val):
-    """"""
+    """https://www.quantum-espresso.org/Doc/INPUT_PROJWFC.html#emin
+    """
     assert isinstance(val, (float, int))
 
     efermi = calc.get_fermi_level()
@@ -285,7 +375,8 @@ def Emin(calc, val):
 
 
 def Emax(calc, val):
-    """"""
+    """https://www.quantum-espresso.org/Doc/INPUT_PROJWFC.html#emax
+    """
     assert isinstance(val, (float, int))
 
     efermi = calc.get_fermi_level()
@@ -294,210 +385,12 @@ def Emax(calc, val):
 
 
 def DeltaE(calc, val):
-    """"""
+    """https://www.quantum-espresso.org/Doc/INPUT_PROJWFC.html#deltae
+    """
     assert isinstance(val, (float, int))
 
 
 def nguass(calc, val):
-    """"""
+    """https://www.quantum-espresso.org/Doc/INPUT_PROJWFC.html#ngauss
+    """
     assert isinstance(val, int)
-
-# PARAMETERS
-variables = {
-    # CONTROL
-    'calculation': 'scf',
-    'title': None,
-    'verbosity': None,
-    'restart_mode': None,
-    'wf_collect': None,
-    'nstep': None,
-    'iprint': None,
-    'tstress': True,
-    'tprnfor': True,
-    'dt': None,
-    'outdir': '.',
-    'wfcdir': None,
-    'prefix': 'calc',
-    'lkpoint_dir': None,
-    'max_seconds': None,
-    'etot_conv_thr': 0.0,
-    'forc_conv_thr': 0.05 / (Rydberg / Bohr),
-    'disk_io': None,
-    'pseudo_dir': os.environ['ESP_PSP_PATH'],
-    'tefield': None,
-    'dipfield': None,
-    'lelfield': None,
-    'nberrycyc': None,
-    'lorbm': None,
-    'lberry': None,
-    'gdir': None,
-    'nppstr': None,
-    'lfcpopt': None,
-    'gate': None,
-    # SYSTEM
-    'ibrav': 0,
-    'celldm': None,
-    'A': None,
-    'B': None,
-    'C': None,
-    'cosAB': None,
-    'cosAC': None,
-    'cosBC': None,
-    'nat': None,
-    'ntyp': None,
-    'nbnd': None,
-    'tot_charge': None,
-    'starting_charge': None,
-    'tot_magnetization': None,
-    'starting_magnetization': None,
-    'ecutwfc': None,
-    'ecutrho': None,
-    'ecutfock': None,
-    'nr1': None,
-    'nr2': None,
-    'nr3': None,
-    'nr1s': None,
-    'nr2s': None,
-    'nr3s': None,
-    'nosym': None,
-    'nosym_evc': None,
-    'noinv': None,
-    'no_t_rev': None,
-    'force_symmorphic': None,
-    'use_all_frac': None,
-    'occupations': 'smearing',
-    'one_atom_occupations': None,
-    'starting_spin_angle': None,
-    'degauss': 0.1 / Rydberg,
-    'smearing': 'fd',
-    'nspin': None,
-    'noncolin': None,
-    'ecfixed': None,
-    'qcutz': None,
-    'q2sigma': None,
-    'input_dft': None,
-    'exx_fraction': None,
-    'screening_parameter': None,
-    'exxdiv_treatment': None,
-    'x_gamma_extrapolation': None,
-    'ecutvcut': None,
-    'nqx1': None,
-    'nqx2': None,
-    'nqx3': None,
-    'lda_plus_u': None,
-    'lda_plus_u_kind': None,
-    'Hubbard_U': None,
-    'Hubbard_J0': None,
-    'Hubbard_alpha': None,
-    'Hubbard_beta': None,
-    'Hubbard_J': None,
-    'starting_ns_eigenvalue': None,
-    'U_projection_type': None,
-    'edir': None,
-    'emaxpos': None,
-    'eopreg': None,
-    'eamp': None,
-    'angle1': None,
-    'angle2': None,
-    'constrained_magnetization': None,
-    'fixed_magnetization': None,
-    'lambda': None,
-    'report': None,
-    'lspinorb': None,
-    'assume_isolated': None,
-    'esm_bc': None,
-    'esm_w': None,
-    'esm_efield': None,
-    'esm_nfit': None,
-    'fcp_mu': None,
-    'vdw_corr': None,
-    'london': None,
-    'london_s6': None,
-    'london_c6': None,
-    'london_rvdw': None,
-    'london_rcut': None,
-    'ts_vdw_econv_thr': None,
-    'ts_vdw_isolated': None,
-    'xdm': None,
-    'xdm_a1': None,
-    'xdm_a2': None,
-    'space_group': None,
-    'uniqueb': None,
-    'origin_choice': None,
-    'rhombohedral': None,
-    'zgate': None,
-    'realxz': None,
-    'block': None,
-    'block_1': None,
-    'block_2': None,
-    'block_height': None,
-    # ELECTRONS
-    'electron_maxstep': None,
-    'scf_must_converge': None,
-    'conv_thr': None,
-    'adaptive_thr': None,
-    'conv_thr_init': None,
-    'conv_thr_multi': None,
-    'mixing_mode': None,
-    'mixing_beta': None,
-    'mixing_ndim': None,
-    'mixing_fixed_ns': None,
-    'diagonalization': None,
-    'ortho_para': None,  # OBSOLETE
-    'diago_thr_init': None,
-    'diago_cg_maxiter': None,
-    'diago_david_ndim': None,
-    'diago_full_acc': None,
-    'efield': None,
-    'efield_cart': None,
-    'efield_phase': None,
-    'startingpot': None,
-    'startingwfc': None,
-    'tqr': None,
-    # IONS
-    'ion_dynamics': None,
-    'ion_positions': None,
-    'pot_extrapolation': None,
-    'wfc_extrapolation': None,
-    'remove_rigid_rot': None,
-    'ion_temperature': None,
-    'tempw': None,
-    'tolp': None,
-    'delta_t': None,
-    'nraise': None,
-    'refold_pos': None,
-    'upscale': None,
-    'bfgs_ndim': None,
-    'trust_radius_max': None,
-    'trust_radius_min': None,
-    'trust_radius_ini': None,
-    'w_1': None,
-    'w_2': None,
-    # CELL
-    'cell_dynamics': None,
-    'press': None,
-    'wmass': None,
-    'cell_factor': None,
-    'press_conv_thr': None,
-    'cell_dofree': None,
-}
-
-
-projwfc_vars = {
-    # PROJWFC
-    'ngauss': None,
-    'Emin': -20,
-    'Emax': 20,
-    'DeltaE': 0.01,
-    'lsym': None,
-    'pawpraj': None,
-    'filpdos': None,
-    'filproj': None,
-    'lwrite_overlaps': None,
-    'lbinary_data': None,
-    'kresolveddos': None,
-    'tdosinboxes': None,
-    'n_proj_boxes': None,
-    'irmin': None,
-    'irmax': None,
-    'plotboxes': None}

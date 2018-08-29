@@ -129,7 +129,7 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
         value : bool | int | float | str | None
             The parameter value specified by the user, or None
         """
-        value = self.params.get(parameter, self.defaults[parameter])
+        value = self.params.get(parameter, self.defaults.get(parameter))
 
         return value
 
@@ -151,7 +151,7 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
         for species in self.species:
             fname = os.path.join(
                 self.get_param('pseudo_dir'), '{}.UPF'.format(species))
-            valence = siteconfig.grepy('z valence|z_valence', fname).split()[0]
+            valence = io.grepy('z valence|z_valence', fname).split()[0]
             nel[species] = int(float(valence))
 
         nvalence = np.zeros_like(self.symbols, int)
@@ -177,7 +177,7 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
         efermi : float
             The fermi energy in eV.
         """
-        efermi = siteconfig.grepy('Fermi energy', outfile)
+        efermi = io.grepy('Fermi energy', outfile)
         if efermi is not None:
             efermi = float(efermi.split()[-2])
 
