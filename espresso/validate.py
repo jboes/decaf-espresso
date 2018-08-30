@@ -62,13 +62,13 @@ def tefield(calc, val):
     """
     assert isinstance(val, bool)
     if not calc.get_param('edir'):
-        calc.params['edir'] = 3
+        calc.parameters['edir'] = 3
 
     if not calc.get_param('eamp'):
-        calc.params['eamp'] = 0.0
+        calc.parameters['eamp'] = 0.0
 
     if not calc.get_param('emaxpos'):
-        calc.params['emaxpos'] = utils.get_max_empty_space(calc.atoms)
+        calc.parameters['emaxpos'] = utils.get_max_empty_space(calc.atoms)
 
 
 def dipfield(calc, val):
@@ -76,7 +76,7 @@ def dipfield(calc, val):
     """
     assert isinstance(val, bool)
     if not calc.get_param('tefield'):
-        calc.params['tefield'] = True
+        calc.parameters['tefield'] = True
         tefield(calc, val)
 
 
@@ -85,7 +85,7 @@ def tstress(calc, val):
     """
     assert isinstance(val, bool)
     if not calc.get_param('tprnfor'):
-        calc.params['tprnfor'] = True
+        calc.parameters['tprnfor'] = True
 
 
 def tprnfor(calc, val):
@@ -112,10 +112,10 @@ def degauss(calc, val):
 
     # Without smearing, we enforce fixed occupation.
     if abs(val) <= 1e-13:
-        calc.params['occupations'] = 'fixed'
+        calc.parameters['occupations'] = 'fixed'
         moments = calc.atoms.get_initial_magnetic_moments()
-        calc.params['tot_magnetization'] = moments.sum()
-        calc.params['nspin'] = 2
+        calc.parameters['tot_magnetization'] = moments.sum()
+        calc.parameters['nspin'] = 2
         warnings.warn("'degauss' is zero. Enforcing fixed "
                       "overall magnetic moment")
 
@@ -147,7 +147,7 @@ def noncolin(calc, val):
     """https://www.quantum-espresso.org/Doc/INPUT_PW.html#noncolin
     """
     assert isinstance(val, bool)
-    calc.params['nspin'] = 4
+    calc.parameters['nspin'] = 4
     nspin(calc, 4)
 
 
@@ -356,11 +356,11 @@ def Hubbard_U(calc, val):
     i = 1
     for specie, n in nspecies.items():
         for j in range(n):
-            calc.params['Hubbard_U({})'.format(i)] = val.get(specie, 0)
+            calc.parameters['Hubbard_U({})'.format(i)] = val.get(specie, 0)
             i += 1
 
-    del calc.params['Hubbard_U']
-    calc.params['lda_plus_u'] = True
+    del calc.parameters['Hubbard_U']
+    calc.parameters['lda_plus_u'] = True
 
 
 # PROJWFC variables

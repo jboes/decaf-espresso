@@ -34,12 +34,13 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
         Geometric aspects of the calculation are defined by the atoms
         object, so geometry related arguments are ignored.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         atoms : Atoms object
             ASE atoms to attach the calculator with.
         """
-        self.params = kwargs.copy()
+        self.name = 'decaf-espresso'
+        self.parameters = kwargs.copy()
         self.defaults = validate.variables
         self.results = {}
         self.site = site
@@ -57,20 +58,20 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
                         'cosAB', 'cosAC', 'cosBC', 'nat', 'ntyp']
 
         # Run validation checks
-        init_params = self.params.copy()
+        init_params = self.parameters.copy()
         for key, val in init_params.items():
 
             if key in ignored_keys:
-                del self.params[key]
+                del self.parameters[key]
             elif key in validate.__dict__:
                 f = validate.__dict__[key]
                 new_val = f(self, val)
 
                 # Used to convert values from eV to Ry
                 if new_val is not None:
-                    self.params[key] = new_val
+                    self.parameters[key] = new_val
                 elif isinstance(val, six.string_types):
-                    self.params[key] = str(val)
+                    self.parameters[key] = str(val)
             else:
                 warnings.warn('No validation for {}'.format(key))
 
@@ -78,22 +79,23 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
         """Create the input file to start the calculation. Defines unspecified
         defaults as defined in validate.py.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         infile : str
             Name of the input file which will be written.
         """
         for key, value in self.defaults.items():
             setting = self.get_param(key)
             if setting is not None:
-                self.params[key] = setting
+                self.parameters[key] = setting
 
         # ASE format for the pseudopotential file location.
-        self.params['pseudopotentials'] = {}
+        self.parameters['pseudopotentials'] = {}
         for species in self.species:
-            self.params['pseudopotentials'][species] = '{}.UPF'.format(species)
+            self.parameters['pseudopotentials'][species] = '{}.UPF'.format(
+                species)
 
-        ase.io.write(infile, self.atoms, **self.params)
+        ase.io.write(infile, self.atoms, **self.parameters)
 
     def calculate(self, atoms, properties=['energy'], changes=None):
         """Perform a calculation."""
@@ -119,17 +121,17 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
         """Return the parameter associated with a calculator,
         otherwise, return the default value.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         parameter : str
             Name of the parameter to retrieve the value of.
 
-        Returns:
-        --------
+        Returns
+        -------
         value : bool | int | float | str | None
             The parameter value specified by the user, or None
         """
-        value = self.params.get(parameter, self.defaults.get(parameter))
+        value = self.parameters.get(parameter, self.defaults.get(parameter))
 
         return value
 
@@ -137,8 +139,8 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
         """Get number of valence electrons from pseudopotential file associated
         with an atoms object.
 
-        Returns:
-        --------
+        Returns
+        -------
         nvalence : ndarray (N,)
             Number of valence electrons associated with each atom N.
         nel : dict
@@ -167,13 +169,13 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
     def get_fermi_level(outfile='pw.pwo'):
         """Return the fermi level in eV from a completed calculation file.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         outfile : str
             The completed calculation file to read the fermi level from.
 
-        Returns:
-        --------
+        Returns
+        -------
         efermi : float
             The fermi energy in eV.
         """
@@ -187,16 +189,16 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
         """Wrapper for the PDOS class for getting the projected density of
         states.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         parameters : dict
             Parameters to pass to PDOS class for a projwfc calculation.
         update_projections : bool
             Whether to attach an updated estimate of spin derived parameters
             to the atoms object (magmoms and charge).
 
-        Returns:
-        --------
+        Returns
+        -------
         pdos : list (3,)
             Energy range, total DOS, and projected DOS of a calculation.
         """
@@ -244,19 +246,19 @@ class PDOS(Espresso):
 
         # Extract the PROJWFC variables
         projwfc_args = {}
-        initial_params = self.params.copy()
+        initial_params = self.parameters.copy()
         for key, value in initial_params.items():
             if key in validate.projwfc_vars:
                 projwfc_args[key] = value
                 del kwargs[key]
 
         self.projwfc_args = projwfc_args
-        self.params = io.read_input_parameters()
+        self.parameters = io.read_input_parameters()
 
         # Check for variables that have changed
         self.recalculate = False
         for parameter, value in kwargs.items():
-            origional = self.params.get(parameter)
+            origional = self.parameters.get(parameter)
 
             if origional is not None:
                 if isinstance(origional, float):
@@ -266,7 +268,7 @@ class PDOS(Espresso):
 
                 if not match:
                     self.recalculate = True
-                    self.params.update(kwargs)
+                    self.parameters.update(kwargs)
                     break
 
     def calculate(self):
@@ -294,7 +296,7 @@ class PDOS(Espresso):
 
     def calculate_ncsf(self):
         """If the pw.pwi inputs have changed, run a ncsf calculation."""
-        self.params['calculation'] = 'nscf'
+        self.parameters['calculation'] = 'nscf'
         self.write_pw_input('nscf.pwi')
         self.site.run(infile='nscf.pwi', outfile='nscf.pwo')
         self.efermi = self.get_fermi_level('nscf.pwo')
@@ -355,8 +357,8 @@ class PDOS(Espresso):
         """Get a refined estimate of the magnetic moments and charge
         from the projected density of states.
 
-        Returns:
-        --------
+        Returns
+        -------
         magmoms : ndarray (N,)
             Projected magnetic moment of individual atoms.
         charge : ndarray (N,)

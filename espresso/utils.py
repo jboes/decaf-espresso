@@ -7,15 +7,15 @@ def get_max_empty_space(atoms, edir=3):
     its midpoint in scaled coordinates (0 to 1) in the edir
     direction (default z).
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     atoms : Atoms object
         Unit cell to find the maximum distance for.
     edir : int (1 | 2 | 3)
         Direction to search for the maximum distance in.
 
-    Returns:
-    --------
+    Returns
+    -------
     max_distance : float
         The scaled maximum distance between atoms in the unit cell
         in resepcts to edir.

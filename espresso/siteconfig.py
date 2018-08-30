@@ -41,8 +41,8 @@ def load_calculator(infile='calc.tar.gz', outdir='.'):
     """Unpack the contents of calc.save directory which
     was previously compressed.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     infile : str
         Relative input file for compressed save folder.
     outdir : str
@@ -57,11 +57,15 @@ class SiteConfig():
     with methods for retrieving the details from systems variables and
     creating directories.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     scheduler : str
         Name of the scheduler, curretly supports: SLURM, and
         PBS/TORQUE, and LSF
+    cluster : str
+        Name of the specific high-performance computer being used.
+        Needed for executable specifics in
+        :func:`~siteconfig.SiteConfig.get_exe_command`
     """
 
     def __init__(self, scheduler=None, cluster=None):
@@ -91,8 +95,8 @@ class SiteConfig():
         of the cluster being used. Returns None for both if no
         supported schedule is found.
 
-        Returns:
-        --------
+        Returns
+        -------
         cls : SiteConfig object
             Runs SiteConfig with the found arguments.
         """
@@ -164,8 +168,8 @@ class SiteConfig():
 
         This function will automatically cleanup upon exiting Python.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         save_calc : bool
             Whether to save the calculation folder or not.
         """
@@ -194,15 +198,15 @@ class SiteConfig():
         a supplied argument. If a workdir is provided, assume
         execution per processor, otherwise, per host.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         program : str
-            The full command line program to be executed using subprocess
+            The full command line program to be executed using subprocess.
         workdir : str
             A path to act as the working directory.
 
-        Returns:
-        --------
+        Returns
+        -------
         command : list or str (N,)
             The list of arguments to be passed to subprocess.
         """
@@ -220,7 +224,8 @@ class SiteConfig():
             init = exe + ['ls', self.submitdir]
             subprocess.call(init)
         elif self.cluster == 'sherlock':
-            exe = ['mpiexec', nproc, str(self.nnodes), host, ','.join(self.proclist)]
+            exe = ['mpiexec', nproc, str(self.nnodes),
+                   host, ','.join(self.proclist)]
 
         # This indicates per-processor MPI run
         if workdir:
@@ -238,8 +243,8 @@ class SiteConfig():
         attempt to automatically assign an intelligent npool value
         for efficient parallelization.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         exe : str
             The Espresso executable command to be run.
         infile : str
@@ -247,8 +252,8 @@ class SiteConfig():
         outfile : str
             Name of the output file to be used for the executable.
 
-        Returns:
-        --------
+        Returns
+        -------
         state : int
             The output state of the subprocess executed command.
         """

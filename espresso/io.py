@@ -7,13 +7,13 @@ import os
 def read(infile, *args):
     """A wrapper to read the magnetic moment correctly.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     infile : str
         The input file to read from.
 
-    Returns:
-    --------
+    Returns
+    -------
     images : Atoms object | list
         Atoms object or trajectory depending on arguments.
     """
@@ -43,13 +43,13 @@ def read(infile, *args):
 def read_input_parameters(infile='pw.pwi'):
     """Return a dictionary of input arguments from an Espresso file.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     infile : str
         Input file to read arguments from.
 
-    Returns:
-    --------
+    Returns
+    -------
     data : dict
         Arguments from an input file.
     """
@@ -75,8 +75,8 @@ def read_input_parameters(infile='pw.pwi'):
 def write_projwfc_input(parameters, infile='projwfc.pwi'):
     """Write a projected wave function file.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     parameters : dict
         Input parameters to be written to the file.
     infile : str
@@ -96,8 +96,8 @@ def grepy(search, filename, instance=-1):
     """Perform a python based grep-like operation for a
     regular expression on a given file.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     search : str
         Regular expression to be found.
     filename : str
@@ -105,8 +105,8 @@ def grepy(search, filename, instance=-1):
     instances : slice
         Index of the arguments to find. If None, return all found results.
 
-    Returns:
-    --------
+    Returns
+    -------
     results : list of str (N,) | None
         All requested instances of a given argument.
     """
@@ -131,13 +131,13 @@ def grepy(search, filename, instance=-1):
 def value_to_fortran(value):
     """Return a Python compatible version of a FORTRAN argument.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     value : bool | int | float | str
         A Python friendly representation of the input value.
 
-    Returns:
-    --------
+    Returns
+    -------
     fortran_value : str
         A FORTRAN argument.
     """
@@ -154,13 +154,13 @@ def value_to_fortran(value):
 def fortran_to_value(fortran_value):
     """Return a Python compatible version of a FORTRAN argument.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     fortran_value : str
         A FORTRAN argument.
 
-    Returns:
-    --------
+    Returns
+    -------
     value : bool | int | float | str
         A Python friendly representation of the input value.
     """
