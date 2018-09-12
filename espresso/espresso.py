@@ -75,9 +75,11 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
             else:
                 warnings.warn('No validation for {}'.format(key))
 
-    def write_pw_input(self, infile='pw.pwi'):
+    def write_input(self, infile='pw.pwi'):
         """Create the input file to start the calculation. Defines unspecified
         defaults as defined in validate.py.
+
+        Note: This overwrites the existing ASE calculator function.
 
         Parameters
         ----------
@@ -99,7 +101,7 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
 
     def calculate(self, atoms, properties=['energy'], changes=None):
         """Perform a calculation."""
-        self.write_pw_input('pw.pwi')
+        self.write_input('pw.pwi')
 
         self.site.make_scratch()
         self.site.run(infile='pw.pwi', outfile='pw.pwo')
@@ -297,7 +299,7 @@ class PDOS(Espresso):
     def calculate_ncsf(self):
         """If the pw.pwi inputs have changed, run a ncsf calculation."""
         self.parameters['calculation'] = 'nscf'
-        self.write_pw_input('nscf.pwi')
+        self.write_input('nscf.pwi')
         self.site.run(infile='nscf.pwi', outfile='nscf.pwo')
         self.efermi = self.get_fermi_level('nscf.pwo')
 
