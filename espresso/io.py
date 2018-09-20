@@ -19,6 +19,14 @@ def read(infile, *args):
     """
     images = aseio.read(infile, *args)
 
+    read_ldu_nmag = grepy('atom [\d ]{4}   Tr\[ns\(na\)\]', infile, ':')
+    if read_ldu_nmag:
+        magmom_ind = np.unique([int(_.split()[1]) for _ in read_ldu_nmag]) - 1
+        n = len(magmom_ind)
+
+        read_ldu_mag = grepy('atomic mag.', infile, ':')
+        magmoms = np.round([float(_.split()[-1]) for _ in read_ldu_mag], 4)
+
     if isinstance(images, list):
         with open(infile, 'r') as f:
             lines = f.readlines()
@@ -26,16 +34,26 @@ def read(infile, *args):
         magmom = []
         for i, line in enumerate(lines):
             if 'absolute magnetization' in line \
-               and 'convergence has been achieved' in lines[i + 3]:
-                magmom += [line.split('=')[-1].split('Bohr')[0]]
+               and 'convergence has been achieved' in lines[i + 2]:
+                magmom += [line.split()[-3]]
 
-        for i, mag in enumerate(magmom):
-            images[i]._calc.results['magmom'] = np.round(float(mag), 2)
+        for i, atoms in enumerate(images):
+            atoms.calc.results['magmom'] = np.round(float(magmom[i]), 2)
+
+            if read_ldu_nmag:
+                mag = atoms.calc.results['magmoms']
+                mag[magmom_ind] = magmoms[(i+1)*n + n:(i+1)*n + n*2]
+
+        if read_ldu_nmag:
+            images[-1].calc.results['magmoms'][magmom_ind] = magmoms[-n:]
     else:
-        mag = grepy('absolute magnetization', infile)
-        if mag:
-            mag = mag.split('=')[-1].split('Bohr')[0]
-            images._calc.results['magmom'] = np.round(float(mag), 2)
+        magmom = grepy('absolute magnetization', infile)
+        if magmom:
+            magmom = magmom.split('=')[-1].split('Bohr')[0]
+            images.calc.results['magmom'] = np.round(float(magmom), 2)
+
+        if read_ldu_nmag:
+            images.calc.results['magmoms'][magmom_ind] = magmoms[-n:]
 
     return images
 
