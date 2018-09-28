@@ -13,7 +13,7 @@ variables = {
     # CONTROL
     'outdir': '.',
     'prefix': 'calc',
-    'etot_conv_thr': 0.0,
+    'etot_conv_thr': 1e12,
     'forc_conv_thr': 0.05 / (Rydberg / Bohr),
     'pseudo_dir': os.environ['ESP_PSP_PATH'],
     'occupations': 'smearing',
