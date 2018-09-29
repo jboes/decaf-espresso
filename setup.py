@@ -8,7 +8,7 @@ with open('readme.org', 'r') as f:
 
 setuptools.setup(
     name="decaf-espresso",
-    version="0.1.1",
+    version="0.2.1",
     url="https://github.com/jboes/decaf-espresso",
 
     author="Jacob Boes",
@@ -21,6 +21,7 @@ setuptools.setup(
     packages=['espresso'],
     package_dir={'espresso': 'espresso'},
     install_requires=requirements,
+    include_package_data=True,
     python_requires='>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*, <4',
 
     classifiers=[

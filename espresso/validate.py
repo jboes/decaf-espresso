@@ -9,13 +9,18 @@ KEYS['system'] += ['ensemble_energies', 'print_ensemble_energies']
 Rydberg = create_units('2006')['Rydberg']
 Bohr = create_units('2006')['Bohr']
 
+
 variables = {
     # CONTROL
     'outdir': '.',
     'prefix': 'calc',
     'etot_conv_thr': 1e12,
     'forc_conv_thr': 0.05 / (Rydberg / Bohr),
-    'pseudo_dir': os.environ.get('ESP_PSP_PATH', None),
+    'pseudo_dir': os.environ.get(
+        'ESP_PSP_PATH',
+        os.path.join(
+            '/'.join(__file__.split('/')[:-2]),
+            'gbrv15pbe')),
     'occupations': 'smearing',
     'smearing': 'fd',
     'ibrav': 0,

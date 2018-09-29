@@ -163,7 +163,7 @@ class SiteConfig():
     def make_scratch(self, save_calc=True):
         """Create a scratch directory on each calculation node if batch mode
         or a single scratch directory otherwise. Will attempt to call
-        from $L_SCRATCH_JOB variable, then /tmp, then use the
+        from $ESPRESSO_SCRATCH variable, then /tmp, then use the
         submission directory.
 
         This function will automatically cleanup upon exiting Python.
@@ -259,6 +259,7 @@ class SiteConfig():
         """
         mypath = os.path.abspath(os.path.dirname(__file__))
         exedir = subprocess.check_output(['which', exe]).decode()
+        os.environ['OMP_NUM_THREADS'] = '1'
 
         # Copy the input file to the scratch directory.
         inp = self.submitdir.joinpath(infile)
