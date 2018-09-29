@@ -33,8 +33,8 @@ def read(infile, *args):
 
         magmom = []
         for i, line in enumerate(lines):
-            if 'absolute magnetization' in line \
-               and 'convergence has been achieved' in lines[i + 2]:
+            if 'total magnetization' in line \
+               and 'convergence has been achieved' in lines[i + 3]:
                 magmom += [line.split()[-3]]
 
         for i, atoms in enumerate(images):

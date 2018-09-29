@@ -15,7 +15,7 @@ variables = {
     'prefix': 'calc',
     'etot_conv_thr': 0.0,
     'forc_conv_thr': 0.05 / (Rydberg / Bohr),
-    'pseudo_dir': os.environ['ESP_PSP_PATH'],
+    'pseudo_dir': os.environ.get('ESP_PSP_PATH', None),
     'occupations': 'smearing',
     'smearing': 'fd',
     'ibrav': 0,
