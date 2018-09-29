@@ -8,7 +8,7 @@ with open('readme.org', 'r') as f:
 
 setuptools.setup(
     name="decaf-espresso",
-    version="0.1.1",
+    version="0.2.0",
     url="https://github.com/jboes/decaf-espresso",
 
     author="Jacob Boes",
