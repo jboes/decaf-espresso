@@ -213,7 +213,7 @@ class SiteConfig():
         exe, host, nproc, wd = ['mpiexec'], '-host', '-np', '-wdir'
 
         # SPECIAL SERVER EXECUTABLE CASES ARE HANDLED HERE
-        if self.cluster == 'edison':
+        if self.cluster in ['cori', 'edison']:
             exe, host, nproc, wd = ['srun'], '-w', '-n', '-D'
         elif self.cluster == 'slac' and workdir:
             exe = ['pam', '-g', '/afs/slac/g/suncat/bin/suncat-tsmpirun',
