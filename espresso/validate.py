@@ -32,6 +32,17 @@ projwfc_vars = {
     'DeltaE': 0.01}
 
 
+def kspacing(calc, val):
+    """This is an ASE keyword for producing a uniform Monkhosrt-Packed grid
+    in reciprocal space. The float provided is the minimum distance between
+    points in reciprocal space.
+
+    https://wiki.fysik.dtu.dk/ase/ase/calculators/espresso.html
+    """
+    assert isinstance(val, float)
+    assert (val >= 0) and (val <= 1)
+
+
 def edir(calc, val):
     """https://www.quantum-espresso.org/Doc/INPUT_PW.html#edir
     """
