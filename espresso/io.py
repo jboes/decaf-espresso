@@ -36,6 +36,8 @@ def read(infile, *args):
             if 'total magnetization' in line \
                and 'convergence has been achieved' in lines[i + 3]:
                 magmom += [line.split()[-3]]
+        if not magmom:
+            return images
 
         for i, atoms in enumerate(images):
             atoms.calc.results['magmom'] = np.round(float(magmom[i]), 2)
