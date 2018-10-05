@@ -24,6 +24,8 @@ variables = {
     'occupations': 'smearing',
     'smearing': 'fd',
     'ibrav': 0,
+    'nosym': True,
+    'conv_thr': 1e-4,
     'degauss': 0.1 / Rydberg}
 
 projwfc_vars = {
@@ -41,6 +43,12 @@ def kspacing(calc, val):
     """
     assert isinstance(val, float)
     assert (val >= 0) and (val <= 1)
+
+
+def press_conv_thr(calc, val):
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#press_conv_thr
+    """
+    assert isinstance(val, float)
 
 
 def edir(calc, val):

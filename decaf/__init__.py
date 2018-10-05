@@ -1,4 +1,4 @@
-from .espresso import Espresso, PDOS
+from .decaf import Espresso, PDOS
 from .siteconfig import SiteConfig
 
 __all__ = ['Espresso', 'SiteConfig', 'PDOS']

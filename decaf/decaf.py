@@ -20,7 +20,7 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
     """
 
     implemented_properties = [
-        'energy', 'forces', 'stress', 'magmom', 'magmoms']
+        'energy', 'forces', 'stress', 'charges', 'magmom', 'magmoms']
 
     def __init__(
             self,
@@ -37,10 +37,11 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
         Parameters
         ----------
         atoms : Atoms object
-            ASE atoms to attach the calculator with.
+            ASE atoms to attach to the calculator.
         """
-        self.name = 'decaf-espresso'
+        self.name = 'decaf.Espresso'
         self.parameters = kwargs.copy()
+        self.input_parameters = kwargs.copy()
         self.defaults = validate.variables
         self.results = {}
         self.site = site
@@ -57,13 +58,15 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
         ignored_keys = ['prefix', 'outdir', 'ibrav', 'celldm', 'A', 'B', 'C',
                         'cosAB', 'cosAC', 'cosBC', 'nat', 'ntyp']
 
-        # Run validation checks
-        init_params = self.parameters.copy()
-        for key, val in init_params.items():
+        # Remove ignored keys
+        for key in ignored_keys:
+            key_found = self.input_parameters.pop(key, None)
+            if key_found:
+                warnings.warn('Input key ignored: {}'.format(key))
 
-            if key in ignored_keys:
-                del self.parameters[key]
-            elif key in validate.__dict__:
+        # Run validation checks
+        for key, val in self.input_parameters.items():
+            if key in validate.__dict__:
                 f = validate.__dict__[key]
                 new_val = f(self, val)
 
@@ -73,7 +76,7 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
                 elif isinstance(val, six.string_types):
                     self.parameters[key] = str(val)
             else:
-                warnings.warn('No validation for {}'.format(key))
+                warnings.warn('No validation for: {}'.format(key))
 
     def write_input(self, infile='pw.pwi'):
         """Create the input file to start the calculation. Defines unspecified
@@ -109,11 +112,11 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
         relaxed_atoms = io.read('pw.pwo')
 
         atoms.arrays = relaxed_atoms.arrays
-        self.set_results(relaxed_atoms)
+        self.set_results(relaxed_atoms._calc.results)
 
-    def set_results(self, atoms):
+    def set_results(self, results):
         """Set the results of the calculator."""
-        self.results = atoms._calc.results
+        self.results = results
 
     def set_atoms(self, atoms):
         """Set the atoms object to the calculator."""
