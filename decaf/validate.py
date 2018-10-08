@@ -25,6 +25,7 @@ variables = {
     'smearing': 'fd',
     'ibrav': 0,
     'nosym': True,
+    'mixing_beta': 0.3,
     'conv_thr': 1e-4,
     'degauss': 0.1 / Rydberg}
 

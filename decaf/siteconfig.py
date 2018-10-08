@@ -37,7 +37,7 @@ def cd(path):
         os.chdir(cwd)
 
 
-def load_calculator(infile='calc.tar.gz', outdir='.'):
+def load_calculator(infile='calc', outdir='.'):
     """Unpack the contents of calc.save directory which
     was previously compressed.
 
@@ -48,6 +48,10 @@ def load_calculator(infile='calc.tar.gz', outdir='.'):
     outdir : str
         Relative output directory path for calc.save folder.
     """
+    if '.' in infile:
+        infile = infile.split('.')[0]
+        infile += '.tar.gz'
+
     with tarfile.open(infile, 'r:gz') as f:
         f.extractall(outdir)
 
@@ -160,7 +164,7 @@ class SiteConfig():
         self.nnodes = len(self.nodelist)
         self.nprocs = len(procs)
 
-    def make_scratch(self, save_calc=True):
+    def make_scratch(self, save_calc='calc'):
         """Create a scratch directory on each calculation node if batch mode
         or a single scratch directory otherwise. Will attempt to call
         from $ESPRESSO_SCRATCH variable, then /tmp, then use the
@@ -170,8 +174,9 @@ class SiteConfig():
 
         Parameters
         ----------
-        save_calc : bool
-            Whether to save the calculation folder or not.
+        save_calc : str
+            Name of the zip file to save the calculation folder too. If none,
+            calculation folder is not saved.
         """
         scratch_paths = [os.getenv('ESPRESSO_SCRATCH', '/tmp'), self.submitdir]
         for scratch in scratch_paths:
@@ -320,15 +325,16 @@ class SiteConfig():
 
         return state
 
-    def clean(self, save_calc=True):
+    def clean(self, save_calc=None):
         """Remove temporary files and directories."""
         os.chdir(self.submitdir)
 
-        calc = self.scratch.joinpath('calc.save')
-        save = self.submitdir.joinpath('calc.tar.gz')
+        if save_calc:
+            calc = self.scratch.joinpath('calc.save')
+            save = self.submitdir.joinpath('{}.tar.gz'.format(save_calc))
 
-        if os.path.exists(calc) and save_calc:
-            with tarfile.open(save, 'w:gz') as f:
-                f.add(calc.dirname(), arcname='.')
+            if os.path.exists(calc):
+                with tarfile.open(save, 'w:gz') as f:
+                    f.add(calc.dirname(), arcname='.')
 
         shutil.rmtree(self.scratch)

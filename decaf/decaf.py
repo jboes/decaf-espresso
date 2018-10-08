@@ -26,6 +26,9 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
             self,
             atoms=None,
             site=None,
+            infile='pw.pwi',
+            outfile='pw.pwo',
+            save_calc=None,
             **kwargs):
         """Initialize the calculators by validating the input key word
         arguments corresponding to valid Quantum Espresso arguments:
@@ -38,6 +41,16 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
         ----------
         atoms : Atoms object
             ASE atoms to attach to the calculator.
+        site : SiteConfig object
+            Manually entered site configuration. Will be chosen automatically
+            if None.
+        infile : str
+            Name of the input file for the calculation.
+        outfile : str
+            Name of the output file for the calculation.
+        save_calc : str
+            Name of the calculation file to save the wavefunctions to. If None,
+            the calculation file is not saved.
         """
         self.name = 'decaf.Espresso'
         self.parameters = kwargs.copy()
@@ -45,6 +58,9 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
         self.defaults = validate.variables
         self.results = {}
         self.site = site
+        self.infile = infile
+        self.outfile = outfile
+        self.save_calc = save_calc
         if self.site is None:
             self.site = siteconfig.SiteConfig.check_scheduler()
 
@@ -56,13 +72,12 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
         # Certain keys are used for fixed IO features or atoms object
         # information. For calculation consistency, user input is ignored.
         ignored_keys = ['prefix', 'outdir', 'ibrav', 'celldm', 'A', 'B', 'C',
-                        'cosAB', 'cosAC', 'cosBC', 'nat', 'ntyp']
+                        'cosAB', 'cosAC', 'cosBC', 'nat', 'ntyp', 'site', 'infile'
+                        'outfile', 'save_calc']
 
         # Remove ignored keys
         for key in ignored_keys:
             key_found = self.input_parameters.pop(key, None)
-            if key_found:
-                warnings.warn('Input key ignored: {}'.format(key))
 
         # Run validation checks
         for key, val in self.input_parameters.items():
@@ -78,7 +93,7 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
             else:
                 warnings.warn('No validation for: {}'.format(key))
 
-    def write_input(self, infile='pw.pwi'):
+    def write_input(self, infile=None):
         """Create the input file to start the calculation. Defines unspecified
         defaults as defined in validate.py.
 
@@ -100,16 +115,18 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
             self.parameters['pseudopotentials'][species] = '{}.UPF'.format(
                 species)
 
+        if infile is None:
+            infile = self.infile
         ase.io.write(infile, self.atoms, **self.parameters)
 
     def calculate(self, atoms, properties=['energy'], changes=None):
         """Perform a calculation."""
-        self.write_input('pw.pwi')
+        self.write_input(self.infile)
 
-        self.site.make_scratch()
-        self.site.run(infile='pw.pwi', outfile='pw.pwo')
+        self.site.make_scratch(self.save_calc)
+        self.site.run(infile=self.infile, outfile=self.outfile)
 
-        relaxed_atoms = io.read('pw.pwo')
+        relaxed_atoms = io.read(self.outfile)
 
         atoms.arrays = relaxed_atoms.arrays
         self.set_results(relaxed_atoms._calc.results)
@@ -170,8 +187,7 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
 
         return nvalence, nel
 
-    @staticmethod
-    def get_fermi_level(outfile='pw.pwo'):
+    def get_fermi_level(self, outfile=None):
         """Return the fermi level in eV from a completed calculation file.
 
         Parameters
@@ -184,6 +200,9 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
         efermi : float
             The fermi energy in eV.
         """
+        if outfile is None:
+            outfile = self.outfile
+
         efermi = io.grepy('Fermi energy', outfile)
         if efermi is not None:
             efermi = float(efermi.split()[-2])
@@ -235,7 +254,7 @@ class PDOS(Espresso):
     be automatically updated and an NSCF calculation performed automatically.
     """
 
-    def __init__(self, site=None, **kwargs):
+    def __init__(self, site=None, infile='pw.pwo', **kwargs):
         """Read in the atoms object and fermi level from an existing
         calculation and then initialize the Espresso parent class.
 
@@ -245,7 +264,7 @@ class PDOS(Espresso):
         """
         super().__init__(None, site, **kwargs)
         self.efermi = self.get_fermi_level()
-        self.atoms = io.read('pw.pwo')
+        self.atoms = io.read(infile)
         self.symbols = self.atoms.get_chemical_symbols()
         self.species = np.unique(self.symbols)
 
