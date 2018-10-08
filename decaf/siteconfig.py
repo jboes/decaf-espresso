@@ -164,7 +164,7 @@ class SiteConfig():
         self.nnodes = len(self.nodelist)
         self.nprocs = len(procs)
 
-    def make_scratch(self, save_calc='calc'):
+    def make_scratch(self, save_file='calc'):
         """Create a scratch directory on each calculation node if batch mode
         or a single scratch directory otherwise. Will attempt to call
         from $ESPRESSO_SCRATCH variable, then /tmp, then use the
@@ -174,7 +174,7 @@ class SiteConfig():
 
         Parameters
         ----------
-        save_calc : str
+        save_file : str
             Name of the zip file to save the calculation folder too. If none,
             calculation folder is not saved.
         """
@@ -196,7 +196,7 @@ class SiteConfig():
                 scratch.makedirs_p()
 
         self.scratch = scratch
-        atexit.register(self.clean, save_calc)
+        atexit.register(self.clean, save_file)
 
     def get_exe_command(self, program, workdir=None):
         """Return a command as list to execute subprocess through
@@ -273,7 +273,7 @@ class SiteConfig():
         if self.scheduler:
             # Automatically assign npool for parallelization
             parflags = ''
-            kpts = io.read_input_parameters()['kpts']
+            kpts = io.read_input_parameters(infile)['kpts']
             if self.nprocs > 1 and kpts > self.nprocs:
                 parflags += '-npool {}'.format(self.nprocs)
 
@@ -325,13 +325,13 @@ class SiteConfig():
 
         return state
 
-    def clean(self, save_calc=None):
+    def clean(self, save_file=None):
         """Remove temporary files and directories."""
         os.chdir(self.submitdir)
 
-        if save_calc:
+        if save_file:
             calc = self.scratch.joinpath('calc.save')
-            save = self.submitdir.joinpath('{}.tar.gz'.format(save_calc))
+            save = self.submitdir.joinpath('{}.tar.gz'.format(save_file))
 
             if os.path.exists(calc):
                 with tarfile.open(save, 'w:gz') as f:

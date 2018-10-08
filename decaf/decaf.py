@@ -26,9 +26,8 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
             self,
             atoms=None,
             site=None,
-            infile='pw.pwi',
-            outfile='pw.pwo',
-            save_calc=None,
+            calc_file='pw.pwi',
+            save_file=None,
             **kwargs):
         """Initialize the calculators by validating the input key word
         arguments corresponding to valid Quantum Espresso arguments:
@@ -44,11 +43,11 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
         site : SiteConfig object
             Manually entered site configuration. Will be chosen automatically
             if None.
-        infile : str
+        calc_file : str
             Name of the input file for the calculation.
         outfile : str
             Name of the output file for the calculation.
-        save_calc : str
+        save_file : str
             Name of the calculation file to save the wavefunctions to. If None,
             the calculation file is not saved.
         """
@@ -58,9 +57,9 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
         self.defaults = validate.variables
         self.results = {}
         self.site = site
-        self.infile = infile
-        self.outfile = outfile
-        self.save_calc = save_calc
+        self.calc_file = calc_file
+        self.outfile = calc_file.split('.')[0] + '.pwo'
+        self.save_file = save_file
         if self.site is None:
             self.site = siteconfig.SiteConfig.check_scheduler()
 
@@ -72,8 +71,8 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
         # Certain keys are used for fixed IO features or atoms object
         # information. For calculation consistency, user input is ignored.
         ignored_keys = ['prefix', 'outdir', 'ibrav', 'celldm', 'A', 'B', 'C',
-                        'cosAB', 'cosAC', 'cosBC', 'nat', 'ntyp', 'site', 'infile'
-                        'outfile', 'save_calc']
+                        'cosAB', 'cosAC', 'cosBC', 'nat', 'ntyp', 'site',
+                        'calc_file', 'save_file']
 
         # Remove ignored keys
         for key in ignored_keys:
@@ -93,7 +92,7 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
             else:
                 warnings.warn('No validation for: {}'.format(key))
 
-    def write_input(self, infile=None):
+    def write_input(self, calc_file=None):
         """Create the input file to start the calculation. Defines unspecified
         defaults as defined in validate.py.
 
@@ -101,7 +100,7 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
 
         Parameters
         ----------
-        infile : str
+        calc_file : str
             Name of the input file which will be written.
         """
         for key, value in self.defaults.items():
@@ -115,21 +114,22 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
             self.parameters['pseudopotentials'][species] = '{}.UPF'.format(
                 species)
 
-        if infile is None:
-            infile = self.infile
-        ase.io.write(infile, self.atoms, **self.parameters)
+        if calc_file is None:
+            calc_file = self.calc_file
+        ase.io.write(calc_file, self.atoms, **self.parameters)
 
     def calculate(self, atoms, properties=['energy'], changes=None):
         """Perform a calculation."""
-        self.write_input(self.infile)
+        self.write_input(self.calc_file)
 
-        self.site.make_scratch(self.save_calc)
-        self.site.run(infile=self.infile, outfile=self.outfile)
+        self.site.make_scratch(self.save_file)
+        self.site.run(infile=self.calc_file, outfile=self.outfile)
 
         relaxed_atoms = io.read(self.outfile)
 
         atoms.arrays = relaxed_atoms.arrays
         self.set_results(relaxed_atoms._calc.results)
+        self.set_atoms(relaxed_atoms)
 
     def set_results(self, results):
         """Set the results of the calculator."""
@@ -277,7 +277,7 @@ class PDOS(Espresso):
                 del kwargs[key]
 
         self.projwfc_args = projwfc_args
-        self.parameters = io.read_input_parameters()
+        self.parameters = io.read_input_parameters(infile)
 
         # Check for variables that have changed
         self.recalculate = False
@@ -303,7 +303,7 @@ class PDOS(Espresso):
         """
         if not self.site.scratch:
             # Starting from completed calculation. Doesn't overwrite save.
-            self.site.make_scratch(save_calc=False)
+            self.site.make_scratch(save_file=None)
             savefile = self.site.submitdir.joinpath('calc.tar.gz')
             if savefile.exists():
                 siteconfig.load_calculator(
