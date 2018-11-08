@@ -1,0 +1,224 @@
+#+Title: Ocean Wrapper Documentation v0.3.1
+#+Author:Jacob Boes
+#+OPTIONS: toc:nil
+#+EXPORT_EXCLUDE_TAGS: noexport
+#+LATEX_HEADER: \usepackage{parskip}
+#+LATEX_HEADER: \setlength{\parindent}{0em}
+
+\maketitle
+
+* Standard usage
+Standard usage currently involves putting an atoms object into the Ocean calculator of [[https://github.com/jboes/decaf-espresso][decaf-espresso]]. Be sure that version 0.3.1 of =decaf-espresso= or newer is installed. Detailed [[https://github.com/jboes/decaf-espresso#installation][installation instructions]] are provided at the GitHub repository.
+
+One is attached here for demonstrative purposes: \attchfile{./IrO2.traj}
+
+executing =calc.write_input()= will automatically write the files currently known to be necessary to the current working directory.
+
+Files written include:
+- =input.in=
+- =run.sh=
+- =photon1=
+- =photon2=
+- =photon3=
+- =*.fill=
+- =*.opts=
+- =*.GGA.fhi=
+
+Currently, only Oxygen =fill= and =opts= files are supported.
+
+Pseudo potential files are taken from the defaults in decaf espresso: gbrv1.5pbe.
+
+The =calc.write_input()= function also returns the =input.in= file content for quickly reading the written parameters.
+
+#+BEGIN_SRC python
+from decaf import Ocean
+from ase.io import read
+
+atoms = read('IrO2.traj')
+
+calc = Ocean(atoms)
+inp = calc.write_input()
+
+print(inp)
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+ppdir {../}
+dft qe
+control 0
+ser_prefix {srun -n 1}
+para_prefix {srun -n 192}
+
+##################
+dft.startingwfc {atomic+random}
+dft.diagonalization {david}
+dft_energy_range 50
+nkpt {6 6 6}
+ngkpt {6 6 6}
+screen.nkpt {2 2 2}
+screen.nbands 2000
+ecut 120
+core_offset .true.
+metal .true.
+occopt 3
+degauss 0.004
+fband 0.65
+toldfe 1.7e-06
+tolwfr 1.1e-16
+nstep 600
+mixing 0.1
+mixing_ndim 20
+etol 1.5e-07
+
+##################
+acell {1.8897261337300524 1.8897261337300524 1.8897261337300524}
+
+rprim {
+   4.50510 0.00000 0.00000
+   0.00000 4.50510 0.00000
+   0.00000 0.00000 3.15860
+}
+
+pp_list {
+   08-O.GGA.fhi
+   77-Ir.GGA.fhi
+}
+
+ntypat 2
+znucl {8 77}
+
+natoms 6
+typat {2 2 1 1 1 1}
+
+xred {
+   0.50000 0.50000 0.50000
+   0.00000 0.00000 0.00000
+   0.19230 0.80770 0.50000
+   0.80770 0.19230 0.50000
+   0.30770 0.30770 0.00000
+   0.69230 0.69230 0.00000
+}
+
+##################
+opf.fill {
+   8 O.fill
+}
+opf.fill {
+   8 O.opts
+}
+diemac 30
+nedges 1
+edges {-8 1 0}
+screen.shells {6.0}
+cnbse.rad {6.0}
+cnbse.broaden {0.3}
+cnbse.niter 200
+scfac 0.8
+
+#+end_example
+
+* Adjusting parameters
+Any parameter known to the wrapper can be adjusted. Currently supported parameters are listed in the output from the script above (Excluding the atomic parameters which are defined by the atoms object).
+
+Also, the =nodes= argument is special and will adjust the =para_prefix {srun -n 192}= argument by the corresponding value multiplied by 32. =nodes= will also update in the =run.sh= file.
+
+If a parameter which is not in the supported list is entered, a warning will be raised and the parameter will be ignored.
+
+Notes:
+- Perl lists, e.g. ={0.3}=, should be entered as a Python list, e.g. =[0.3]=
+- Fortran boolians, e.g. =.true.= should be entered as Python boolians, e.g. =True=
+
+#+BEGIN_SRC python
+from decaf import Ocean
+from ase.io import read
+
+atoms = read('IrO2.traj')
+
+parameters = {
+    'nkpt': [5, 5, 5],
+    'screen.nkpt': [1, 1, 1],
+    'metal': False,
+}
+
+calc = Ocean(atoms, **parameters)
+inp = calc.write_input()
+
+print(inp)
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+ppdir {../}
+dft qe
+control 0
+ser_prefix {srun -n 1}
+para_prefix {srun -n 192}
+
+##################
+dft.startingwfc {atomic+random}
+dft.diagonalization {david}
+dft_energy_range 50
+nkpt {5 5 5}
+ngkpt {6 6 6}
+screen.nkpt {1 1 1}
+screen.nbands 2000
+ecut 120
+core_offset .true.
+metal .false.
+occopt 3
+degauss 0.004
+fband 0.65
+toldfe 1.7e-06
+tolwfr 1.1e-16
+nstep 600
+mixing 0.1
+mixing_ndim 20
+etol 1.5e-07
+
+##################
+acell {1.8897261337300524 1.8897261337300524 1.8897261337300524}
+
+rprim {
+   4.50510 0.00000 0.00000
+   0.00000 4.50510 0.00000
+   0.00000 0.00000 3.15860
+}
+
+pp_list {
+   08-O.GGA.fhi
+   77-Ir.GGA.fhi
+}
+
+ntypat 2
+znucl {8 77}
+
+natoms 6
+typat {2 2 1 1 1 1}
+
+xred {
+   0.50000 0.50000 0.50000
+   0.00000 0.00000 0.00000
+   0.19230 0.80770 0.50000
+   0.80770 0.19230 0.50000
+   0.30770 0.30770 0.00000
+   0.69230 0.69230 0.00000
+}
+
+##################
+opf.fill {
+   8 O.fill
+}
+opf.fill {
+   8 O.opts
+}
+diemac 30
+nedges 1
+edges {-8 1 0}
+screen.shells {6.0}
+cnbse.rad {6.0}
+cnbse.broaden {0.3}
+cnbse.niter 200
+scfac 0.8
+
+#+end_example

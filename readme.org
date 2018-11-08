@@ -157,3 +157,7 @@ atoms = molecule('H2', vacuum=6)
 calc = Espresso(atoms, **parameters)
 atoms.get_potential_energy()
 #+END_SRC
+* Additional documentation
+Some additional features are further detailed in the docs folder. These are specific to project requests from members of the SUNCAT group.
+
+[[./docs/ocean_wrapper.pdf][Ocean Wrapper]]

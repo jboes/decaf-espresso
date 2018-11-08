@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 import shutil
 import ase
 import sys
@@ -63,22 +64,24 @@ class Ocean():
         self.run_parameters = default_run_parameters.copy()
         self.run_parameters['para_prefix'] = ['srun -n {}'.format(32 * nodes)]
         for k, v in default_run_parameters.items():
-            user_defined = kwargs.get(k)
-            if user_defined:
+            user_defined = kwargs.pop(k, None)
+            if user_defined is not None:
                 self.run_parameters[k] = user_defined
 
         self.calculator_parameters = default_calculator_parameters.copy()
-        for par in default_calculator_parameters.items():
-            user_defined = kwargs.get(k)
-            if user_defined:
+        for k, v in default_calculator_parameters.items():
+            user_defined = kwargs.pop(k, None)
+            if user_defined is not None:
                 self.calculator_parameters[k] = user_defined
 
         self.ocean_parameters = default_ocean_parameters.copy()
-        for par in default_ocean_parameters.items():
-            user_defined = kwargs.get(k)
-            if user_defined:
+        for k, v in default_ocean_parameters.items():
+            user_defined = kwargs.pop(k, None)
+            if user_defined is not None:
                 self.ocean_parameters[k] = user_defined
-        
+
+        for k in kwargs:
+            warnings.warn('Undefined parameter: {}'.format(k))
 
     def write_input(self):
         unique_numbers, atom_indicies = np.unique(

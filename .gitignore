@@ -2,3 +2,6 @@ build/
 decaf_espresso.egg-info/
 dist/
 gbrv1.5pbe/
+*.tex
+_minted*
+auto/
