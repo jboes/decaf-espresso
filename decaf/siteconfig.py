@@ -1,5 +1,6 @@
 from . import io
 from path import Path
+import numpy as np
 import contextlib
 import tempfile
 import subprocess
@@ -274,7 +275,7 @@ class SiteConfig():
             # Automatically assign npool for parallelization
             parflags = ''
             kpts = io.read_input_parameters(infile)['kpts']
-            if self.nprocs > 1 and kpts > self.nprocs:
+            if self.nprocs > 1 and np.prod(kpts) > self.nprocs:
                 parflags += '-npool {}'.format(self.nprocs)
 
             command = self.get_exe_command(
