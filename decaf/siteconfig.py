@@ -275,8 +275,8 @@ class SiteConfig():
             # Automatically assign npool for parallelization
             parflags = ''
             kpts = io.read_input_parameters(infile)['kpts']
-            if self.nprocs > 1 and np.prod(kpts) > self.nprocs:
-                parflags += '-npool {}'.format(self.nprocs)
+            if self.nnodes > 1 and np.prod(kpts) > self.nnodes:
+                parflags += '-npool {}'.format(self.nnodes)
 
             command = self.get_exe_command(
                 '{} {} -in {}'.format(exe, parflags, infile), self.scratch)
