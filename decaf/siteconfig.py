@@ -216,12 +216,10 @@ class SiteConfig():
         command : list or str (N,)
             The list of arguments to be passed to subprocess.
         """
-        exe, host, nproc, wd = ['mpiexec'], '-host', '-np', '-wdir'
+        exe, host, nproc, wd = ['srun'], '-w', '-n', '-D'
 
         # SPECIAL SERVER EXECUTABLE CASES ARE HANDLED HERE
-        if self.cluster in ['cori', 'edison']:
-            exe, host, nproc, wd = ['srun'], '-w', '-n', '-D'
-        elif self.cluster == 'slac' and workdir:
+        if self.cluster == 'slac' and workdir:
             exe = ['pam', '-g', '/afs/slac/g/suncat/bin/suncat-tsmpirun',
                    '-x', 'LD_LIBRARY_PATH']
         elif self.cluster == 'slac':
@@ -229,9 +227,6 @@ class SiteConfig():
                    '/afs/slac.stanford.edu/package/lsf/bin.slac/gmmpirun_lsgrun.sh']
             init = exe + ['ls', self.submitdir]
             subprocess.call(init)
-        elif self.cluster == 'sherlock':
-            exe = ['mpiexec', nproc, str(self.nprocs),
-                   host, ','.join(self.proclist)]
 
         # This indicates per-processor MPI run
         if workdir:
