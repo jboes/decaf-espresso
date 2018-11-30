@@ -230,7 +230,7 @@ class SiteConfig():
             init = exe + ['ls', self.submitdir]
             subprocess.call(init)
         elif self.cluster == 'sherlock':
-            exe = ['mpiexec', nproc, str(self.nnodes),
+            exe = ['mpiexec', nproc, str(self.nprocs),
                    host, ','.join(self.proclist)]
 
         # This indicates per-processor MPI run
