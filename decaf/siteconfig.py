@@ -222,10 +222,12 @@ class SiteConfig():
         if self.cluster == 'slac' and workdir:
             exe = ['pam', '-g', '/afs/slac/g/suncat/bin/suncat-tsmpirun',
                    '-x', 'LD_LIBRARY_PATH']
+            host, nproc, wd = '-host', '-np', '-wdir'
         elif self.cluster == 'slac':
             exe = ['mpiexec', '--mca', 'orte_rsh_agent',
                    '/afs/slac.stanford.edu/package/lsf/bin.slac/gmmpirun_lsgrun.sh']
             init = exe + ['ls', self.submitdir]
+            host, nproc, wd = '-host', '-np', '-wdir'
             subprocess.call(init)
 
         # This indicates per-processor MPI run
