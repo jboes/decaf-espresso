@@ -330,7 +330,7 @@ def kpts(calc, val):
 
     https://www.quantum-espresso.org/Doc/INPUT_PW.html#k_points
     """
-    if val == 'gamma':
+    if val is 'gamma':
         return
     assert isinstance(val, (tuple, list, np.ndarray))
     assert len(val) == 3
