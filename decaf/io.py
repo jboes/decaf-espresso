@@ -51,8 +51,9 @@ def read(infile, *args):
     else:
         magmom = grepy('absolute magnetization', infile)
         if magmom:
-            magmom = magmom.split('=')[-1].split('Bohr')[0]
-            images.calc.results['magmom'] = np.round(float(magmom), 2)
+            if 'Bohr' in magmom:
+                magmom = magmom.split('=')[-1].split('Bohr')[0]
+                images.calc.results['magmom'] = np.round(float(magmom), 2)
 
         if read_ldu_nmag:
             images.calc.results['magmoms'][magmom_ind] = magmoms[-n:]
