@@ -22,7 +22,7 @@ variables = {
             '/'.join(__file__.split('/')[:-2]),
             'gbrv15pbe')),
     'occupations': 'smearing',
-    'smearing': 'fd',
+    'smearing': 'mp',
     'ibrav': 0,
     'nosym': True,
     'mixing_beta': 0.3,

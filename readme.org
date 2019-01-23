@@ -142,7 +142,7 @@ The example below will relax an H_{2} molecule using some standard flags. Below 
 - =degauss=: Gaussian smearing coefficient. This is a non-physical contribution meant only to help atomic structures with d-bands converge correctly. For molecules we set it to be small.
 
 #+BEGIN_SRC python :results output org drawer
-from espresso import Espresso
+from decaf import Espresso
 from ase.build import molecule
 
 parameters = {
@@ -157,6 +157,8 @@ atoms = molecule('H2', vacuum=6)
 calc = Espresso(atoms, **parameters)
 atoms.get_potential_energy()
 #+END_SRC
+
+
 * Additional documentation
 Some additional features are further detailed in the docs folder. These are specific to project requests from members of the SUNCAT group.
 

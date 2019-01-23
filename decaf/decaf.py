@@ -51,6 +51,7 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
             Name of the calculation file to save the wavefunctions to. If None,
             the calculation file is not saved.
         """
+        self.atoms = None
         self.name = 'decaf.Espresso'
         self.parameters = kwargs.copy()
         self.input_parameters = kwargs.copy()
@@ -62,11 +63,8 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
         self.save_file = save_file
         if self.site is None:
             self.site = siteconfig.SiteConfig.check_scheduler()
-
-        if atoms is not None:
+        if atoms:
             atoms.set_calculator(self)
-            self.symbols = self.atoms.get_chemical_symbols()
-            self.species = np.unique(self.symbols)
 
         # Certain keys are used for fixed IO features or atoms object
         # information. For calculation consistency, user input is ignored.
@@ -76,21 +74,7 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
 
         # Remove ignored keys
         for key in ignored_keys:
-            key_found = self.input_parameters.pop(key, None)
-
-        # Run validation checks
-        for key, val in self.input_parameters.items():
-            if key in validate.__dict__:
-                f = validate.__dict__[key]
-                new_val = f(self, val)
-
-                # Used to convert values from eV to Ry
-                if new_val is not None:
-                    self.parameters[key] = new_val
-                elif isinstance(val, six.string_types):
-                    self.parameters[key] = str(val)
-            else:
-                warnings.warn('No validation for: {}'.format(key))
+            self.input_parameters.pop(key, None)
 
     def write_input(self, calc_file=None):
         """Create the input file to start the calculation. Defines unspecified
@@ -103,6 +87,7 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
         calc_file : str
             Name of the input file which will be written.
         """
+        self.initialize()
         for key, value in self.defaults.items():
             setting = self.get_param(key)
             if setting is not None:
@@ -117,6 +102,27 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
         if calc_file is None:
             calc_file = self.calc_file
         ase.io.write(calc_file, self.atoms, **self.parameters)
+
+    def initialize(self):
+        """Perform steps before a calculation is executed. This requires
+        an atoms object.
+        """
+        self.symbols = self.atoms.get_chemical_symbols()
+        self.species = np.unique(self.symbols)
+
+        # Run validation checks
+        for key, val in self.input_parameters.items():
+            if key in validate.__dict__:
+                f = validate.__dict__[key]
+                new_val = f(self, val)
+
+                # Used to convert values from eV to Ry
+                if new_val is not None:
+                    self.parameters[key] = new_val
+                elif isinstance(val, six.string_types):
+                    self.parameters[key] = str(val)
+            else:
+                warnings.warn('No validation for: {}'.format(key))
 
     def calculate(self, atoms, properties=['energy'], changes=None):
         """Perform a calculation."""
