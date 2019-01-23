@@ -139,7 +139,7 @@ The example below will relax an H_{2} molecule using some standard flags. Below 
 
 - =conv_thr=: The threshold for considering a total energy converged. DFT is only accurate to about 0.1 eV at best, so 1e-4 should be sufficient for most use cases.
 
-- =degauss=: Gaussian smearing coefficient. This is a non-physical contribution meant only to help atomic structures with d-bands converge correctly. For molecules we set it to be small.
+- =degauss=: Gaussian smearing coefficient. This is a non-physical contribution meant only to help atomic structures with /d/-bands converge correctly. For molecules we set it to be small.
 
 #+BEGIN_SRC python :results output org drawer
 from decaf import Espresso
@@ -150,7 +150,8 @@ parameters = {
     'input_dft': 'PBE',
     'ecutwfc': 500,
     'conv_thr': 1e-4,
-    'degauss': 0.01}
+    'degauss': 0.01
+}
 
 atoms = molecule('H2', vacuum=6)
 
@@ -158,6 +159,33 @@ calc = Espresso(atoms, **parameters)
 atoms.get_potential_energy()
 #+END_SRC
 
+
+** Bulk relaxation
+The next example demonstrates some basic keywords for relaxing a bulk fcc Al unit cell.
+
+- =calculationc=: As above, this keyword indicates the type of calculation to perform. Here we want variable cell relaxation to ensure we find the correct local minimum of the unit cell.
+
+- =press_conv_thr=: The convergence criteria related to the maximum allowed pressure (or stress) on the cell in Kbar. Only useful for bulk with variable cell relaxation.
+
+- =kspacing=: A convenient single parameter term for creating a Monkhorst-Pack /k/-point mesh based on reciprocal lattice vectors. It allows for consistency in /k/-point convergence for unit cells of various sizes.
+
+#+BEGIN_SRC python :results output org drawer
+from decaf import Espresso
+from ase.build import bulk
+
+parameters = {
+    'calculation': 'vc-relax',
+    'input_dft': 'PBE',
+    'ecutwfc': 500,
+    'kspacing': 0.04,
+    'press_conv_thr': 0.5,
+}
+
+atoms = bulk('Al')
+
+calc = Espresso(atoms, **parameters)
+atoms.get_potential_energy()
+#+END_SRC
 
 * Additional documentation
 Some additional features are further detailed in the docs folder. These are specific to project requests from members of the SUNCAT group.
