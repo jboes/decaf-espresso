@@ -126,6 +126,7 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
 
     def calculate(self, atoms, properties=['energy'], changes=None):
         """Perform a calculation."""
+        self.set_atoms(atoms)
         self.write_input(self.calc_file)
 
         self.site.make_scratch(self.save_file)
