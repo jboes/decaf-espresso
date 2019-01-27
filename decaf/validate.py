@@ -129,6 +129,17 @@ def occupations(calc, val):
     assert val in values
 
 
+def smearing(calc, val):
+    """https://www.quantum-espresso.org/Doc/INPUT_PW.html#smearing
+    """
+    assert isinstance(val, six.string_types)
+    values = ['gaussian', 'gauss', 'methfessel-paxton', 'm-p', 'mp',
+              'marzari-vanderbilt', 'cold', 'm-v', 'mv', 'fermi-dirac',
+              'f-d', 'fd']
+
+    assert val in values
+
+
 def degauss(calc, val):
     """https://www.quantum-espresso.org/Doc/INPUT_PW.html#degauss
     """

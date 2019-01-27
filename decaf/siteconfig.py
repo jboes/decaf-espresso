@@ -262,7 +262,6 @@ class SiteConfig():
         """
         mypath = os.path.abspath(os.path.dirname(__file__))
         exedir = subprocess.check_output(['which', exe]).decode()
-        os.environ['OMP_NUM_THREADS'] = '1'
 
         # Copy the input file to the scratch directory.
         inp = self.submitdir.joinpath(infile)
