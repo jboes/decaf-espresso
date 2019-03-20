@@ -76,6 +76,8 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
         for key in ignored_keys:
             self.input_parameters.pop(key, None)
 
+        ase.calculators.calculator.Calculator.__init__(self)
+
     def write_input(self, calc_file=None):
         """Create the input file to start the calculation. Defines unspecified
         defaults as defined in validate.py.
@@ -126,7 +128,7 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
 
     def calculate(self, atoms, properties=['energy'], changes=None):
         """Perform a calculation."""
-        self.set_atoms(atoms)
+        self.atoms = atoms
         self.write_input(self.calc_file)
 
         self.site.make_scratch(self.save_file)
@@ -134,17 +136,8 @@ class Espresso(ase.calculators.calculator.FileIOCalculator):
 
         relaxed_atoms = io.read(self.outfile)
 
-        atoms.arrays = relaxed_atoms.arrays
-        self.set_results(relaxed_atoms._calc.results)
-        self.set_atoms(relaxed_atoms)
-
-    def set_results(self, results):
-        """Set the results of the calculator."""
-        self.results = results
-
-    def set_atoms(self, atoms):
-        """Set the atoms object to the calculator."""
-        self.atoms = atoms
+        self.atoms.arrays = relaxed_atoms.arrays
+        self.results = relaxed_atoms._calc.results
 
     def get_param(self, parameter):
         """Return the parameter associated with a calculator,
